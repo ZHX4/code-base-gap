@@ -8,7 +8,7 @@
   "properties": {
     "observation_id": {"type": "string", "minLength": 1},
     "observation_type": {"type": "string", "minLength": 1},
-    "source_kind": {"type": "string", "enum": ["repository_inspection", "static_analysis", "runtime", "test", "dependency_analysis", "configuration_analysis", "model_derived"]},
+    "source_kind": {"type": "string", "enum": ["repository_inspection", "static_analysis", "runtime", "test", "dependency_analysis", "configuration_analysis"]},
     "source_reference": {"type": "string", "minLength": 1},
     "repository_revision": {"type": "string", "minLength": 1},
     "location": {"type": ["object", "null"], "additionalProperties": true},
