@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/finding.schema.json",
+  "title": "Code Base Gap Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "finding_id",
+    "fingerprint",
+    "repository_revision",
+    "category",
+    "title",
+    "summary",
+    "impact",
+    "severity",
+    "confidence",
+    "status",
+    "affected_components",
+    "affected_locations",
+    "supporting_evidence",
+    "counter_evidence",
+    "verification",
+    "coverage_context"
+  ],
+  "properties": {
+    "finding_id": {"type": "string", "minLength": 1},
+    "fingerprint": {"type": "string", "minLength": 1},
+    "repository_revision": {"type": "string", "minLength": 1},
+    "category": {
+      "type": "string",
+      "enum": ["security", "reliability", "correctness", "architecture", "quality", "testing", "dependency", "configuration", "supply_chain"]
+    },
+    "subcategory": {"type": ["string", "null"]},
+    "title": {"type": "string", "minLength": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "impact": {"type": "string", "minLength": 1},
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low", "informational"]
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "score"],
+      "properties": {
+        "status": {"type": "string", "enum": ["confirmed", "likely", "unverified", "rejected"]},
+        "score": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["observed", "hypothesized", "investigating", "verified", "likely", "unverified", "rejected", "reported", "remediating", "fixed", "regression"]
+    },
+    "affected_components": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "affected_locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repository_revision", "file_path"],
+        "properties": {
+          "repository_revision": {"type": "string"},
+          "file_path": {"type": "string"},
+          "start_line": {"type": ["integer", "null"], "minimum": 1},
+          "end_line": {"type": ["integer", "null"], "minimum": 1},
+          "symbol": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "root_cause": {"type": ["string", "null"]},
+    "supporting_evidence": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "counter_evidence": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "methods", "artifacts"],
+      "properties": {
+        "status": {"type": "string", "enum": ["not_attempted", "planned", "running", "passed", "failed", "inconclusive"]},
+        "methods": {"type": "array", "items": {"type": "string"}},
+        "artifacts": {"type": "array", "items": {"type": "string"}},
+        "reproduction_reference": {"type": ["string", "null"]}
+      }
+    },
+    "remediation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "recommendation": {"type": ["string", "null"]},
+        "patch_reference": {"type": ["string", "null"]},
+        "regression_test_reference": {"type": ["string", "null"]},
+        "validation_status": {"type": ["string", "null"]}
+      }
+    },
+    "coverage_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["eligible", "analyzed", "unknown", "unsupported"],
+            "properties": {
+              "eligible": {"type": "integer", "minimum": 0},
+              "analyzed": {"type": "integer", "minimum": 0},
+              "unknown": {"type": "integer", "minimum": 0},
+              "unsupported": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "created_at": {"type": ["string", "null"], "format": "date-time"},
+    "updated_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
