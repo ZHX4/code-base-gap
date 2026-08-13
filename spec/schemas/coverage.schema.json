@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/coverage.schema.json",
+  "title": "Code Base Gap Coverage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dimensions"],
+  "properties": {
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eligible", "analyzed", "unknown", "unsupported"],
+        "properties": {
+          "eligible": {"type": "integer", "minimum": 0},
+          "analyzed": {"type": "integer", "minimum": 0},
+          "unknown": {"type": "integer", "minimum": 0},
+          "unsupported": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}
