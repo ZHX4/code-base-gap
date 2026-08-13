@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/audit-profile.schema.json",
+  "title": "Code Base Gap Audit Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id", "profile_version", "languages", "analysis_categories", "verification_policy", "resource_policy", "model_policy"],
+  "properties": {
+    "profile_id": {"type": "string", "minLength": 1},
+    "profile_version": {"type": "string", "minLength": 1},
+    "languages": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "analysis_categories": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "verification_policy": {"type": "object", "additionalProperties": true},
+    "resource_policy": {"type": "object", "additionalProperties": true},
+    "model_policy": {"type": "object", "additionalProperties": true}
+  }
+}
