@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/audit-state-machine.schema.json",
+  "title": "Code Base Gap Audit State Machine Definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "terminal_states", "failure_classes", "states"],
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "terminal_states": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "failure_classes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "states": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["terminal", "transitions"],
+        "properties": {
+          "terminal": {"type": "boolean"},
+          "transitions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    }
+  }
+}
