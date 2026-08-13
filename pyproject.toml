@@ -16,4 +16,5 @@ dependencies = []
 code-base-gap = "code_base_gap.phase2.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["code_base_gap*"]
