@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/agent-run.schema.json",
+  "title": "Code Base Gap Agent Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent_run_id", "agent_role", "model_provider", "model_id", "prompt_policy_version", "tool_policy_version", "input_context_references", "tool_calls", "output_reference", "started_at", "completed_at", "status", "error"],
+  "properties": {
+    "agent_run_id": {"type": "string", "minLength": 1},
+    "agent_role": {"type": "string", "minLength": 1},
+    "model_provider": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "prompt_policy_version": {"type": "string", "minLength": 1},
+    "tool_policy_version": {"type": "string", "minLength": 1},
+    "input_context_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "tool_calls": {"type": "array", "items": {"type": "string"}},
+    "output_reference": {"type": ["string", "null"]},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {"type": "string", "enum": ["started", "completed", "failed", "cancelled"]},
+    "error": {"type": ["string", "null"]}
+  }
+}
