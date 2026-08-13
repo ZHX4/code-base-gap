@@ -1,0 +1,37 @@
+name: Phase 1 Specification
+
+on:
+  push:
+    paths:
+      - 'docs/phase-1/**'
+      - 'spec/**'
+      - 'scripts/validate_phase1.py'
+      - 'README.md'
+      - '.github/workflows/phase-1.yml'
+  pull_request:
+    paths:
+      - 'docs/phase-1/**'
+      - 'spec/**'
+      - 'scripts/validate_phase1.py'
+      - 'README.md'
+      - '.github/workflows/phase-1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Phase 1 contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate specification
+        run: python scripts/validate_phase1.py
