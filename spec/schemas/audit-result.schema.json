@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/audit-result.schema.json",
+  "title": "Code Base Gap Audit Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["audit_summary", "system_model_reference", "findings", "coverage", "limitations", "verification_summary", "cost_summary", "toolchain_manifest"],
+  "properties": {
+    "audit_summary": {"type": "string", "minLength": 1},
+    "system_model_reference": {"type": "string", "minLength": 1},
+    "findings": {"type": "array", "items": {"type": "string"}},
+    "coverage": {"type": "string", "minLength": 1},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "verification_summary": {"type": "object", "additionalProperties": true},
+    "cost_summary": {"type": "object", "additionalProperties": true},
+    "toolchain_manifest": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+  }
+}
