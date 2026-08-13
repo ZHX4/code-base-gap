@@ -15,6 +15,16 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 
 The authoritative Phase 1 specification lives under [`docs/phase-1/`](docs/phase-1/).
 
+### Phase 1 validation
+
+Run the repository's standard-library validator locally:
+
+```bash
+python scripts/validate_phase1.py
+```
+
+The same validation runs automatically in GitHub Actions whenever Phase 1 specification artifacts change.
+
 ## Core principles
 
 1. **Repository-level reasoning:** the unit of analysis is the system, not a single file.
