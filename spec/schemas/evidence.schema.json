@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/evidence.schema.json",
+  "title": "Code Base Gap Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "evidence_type", "repository_revision", "source_reference", "locator", "provenance", "generated_at"],
+  "properties": {
+    "evidence_id": {"type": "string", "minLength": 1},
+    "evidence_type": {
+      "type": "string",
+      "enum": ["source_code", "ast", "symbol", "call_graph", "data_flow", "tool_result", "configuration", "documentation", "test", "runtime_observation", "generated_test", "dependency_metadata", "graph_relation", "model_claim"]
+    },
+    "repository_revision": {"type": "string", "minLength": 1},
+    "source_reference": {"type": "string", "minLength": 1},
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file_path": {"type": ["string", "null"]},
+        "start_line": {"type": ["integer", "null"], "minimum": 1},
+        "end_line": {"type": ["integer", "null"], "minimum": 1},
+        "symbol": {"type": ["string", "null"]},
+        "artifact_path": {"type": ["string", "null"]}
+      }
+    },
+    "excerpt_or_artifact_reference": {"type": ["string", "null"]},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["direct", "derived", "inferred", "observed_runtime"]},
+        "parent_evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "tool_invocation_id": {"type": ["string", "null"]},
+        "agent_run_id": {"type": ["string", "null"]}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}
