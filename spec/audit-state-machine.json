@@ -1,29 +1,41 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://code-base-gap.dev/spec/audit-state-machine.json",
-  "title": "Code Base Gap Audit State Machine",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["version", "terminal_states", "failure_classes", "states"],
-  "properties": {
-    "version": {"type": "string", "minLength": 1},
-    "terminal_states": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "failure_classes": {
-      "type": "array",
-      "items": {"type": "string", "enum": ["transient", "configuration", "unsupported", "security_block", "resource_limit", "tool_failure", "model_failure", "repository_failure", "internal_bug"]},
-      "uniqueItems": true
-    },
-    "states": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["terminal", "transitions"],
-        "properties": {
-          "terminal": {"type": "boolean"},
-          "transitions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
-        }
-      }
-    }
+  "$schema": "./schemas/audit-state-machine.schema.json",
+  "version": "1.0.0",
+  "terminal_states": ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"],
+  "failure_classes": [
+    "transient",
+    "configuration",
+    "unsupported",
+    "security_block",
+    "resource_limit",
+    "tool_failure",
+    "model_failure",
+    "repository_failure",
+    "internal_bug"
+  ],
+  "states": {
+    "CREATED": {"terminal": false, "transitions": ["QUEUED", "CANCELLED"]},
+    "QUEUED": {"terminal": false, "transitions": ["PREPARING", "CANCELLED"]},
+    "PREPARING": {"terminal": false, "transitions": ["INGESTING", "FAILED"]},
+    "INGESTING": {"terminal": false, "transitions": ["RECONNAISSANCE", "FAILED"]},
+    "RECONNAISSANCE": {"terminal": false, "transitions": ["PARSING", "PARTIAL", "FAILED"]},
+    "PARSING": {"terminal": false, "transitions": ["INDEXING", "PARTIAL", "FAILED"]},
+    "INDEXING": {"terminal": false, "transitions": ["GRAPH_BUILDING", "PARTIAL", "FAILED"]},
+    "GRAPH_BUILDING": {"terminal": false, "transitions": ["BASELINE_ANALYSIS", "PARTIAL", "FAILED"]},
+    "BASELINE_ANALYSIS": {"terminal": false, "transitions": ["SYSTEM_RECONSTRUCTION", "PARTIAL", "FAILED"]},
+    "SYSTEM_RECONSTRUCTION": {"terminal": false, "transitions": ["CONTRACT_DISCOVERY", "PARTIAL", "FAILED"]},
+    "CONTRACT_DISCOVERY": {"terminal": false, "transitions": ["GAP_ANALYSIS", "PARTIAL", "FAILED"]},
+    "GAP_ANALYSIS": {"terminal": false, "transitions": ["HYPOTHESIS_ANALYSIS", "PARTIAL", "FAILED"]},
+    "HYPOTHESIS_ANALYSIS": {"terminal": false, "transitions": ["VERIFICATION", "COUNTER_ANALYSIS", "PARTIAL"]},
+    "VERIFICATION": {"terminal": false, "transitions": ["COUNTER_ANALYSIS", "JUDGING", "PARTIAL"]},
+    "COUNTER_ANALYSIS": {"terminal": false, "transitions": ["JUDGING", "PARTIAL"]},
+    "JUDGING": {"terminal": false, "transitions": ["REPORTING", "PARTIAL"]},
+    "REPORTING": {"terminal": false, "transitions": ["REMEDIATION", "COMPLETED"]},
+    "REMEDIATION": {"terminal": false, "transitions": ["REVALIDATION", "COMPLETED"]},
+    "REVALIDATION": {"terminal": false, "transitions": ["COMPLETED", "PARTIAL"]},
+    "COMPLETED": {"terminal": true, "transitions": []},
+    "PARTIAL": {"terminal": true, "transitions": []},
+    "FAILED": {"terminal": true, "transitions": []},
+    "CANCELLED": {"terminal": true, "transitions": []}
   }
 }
