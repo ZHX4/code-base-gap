@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/checkpoint.schema.json",
+  "title": "Code Base Gap Audit Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "state_version", "input_references", "output_references", "started_at", "completed_at", "error", "retry_count", "worker_identity"],
+  "properties": {
+    "state": {"type": "string", "minLength": 1},
+    "state_version": {"type": "string", "minLength": 1},
+    "input_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "output_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "error": {"type": ["string", "null"]},
+    "retry_count": {"type": "integer", "minimum": 0},
+    "worker_identity": {"type": "string", "minLength": 1}
+  }
+}
