@@ -8,8 +8,11 @@
   "properties": {
     "audit_summary": {"type": "string", "minLength": 1},
     "system_model_reference": {"type": "string", "minLength": 1},
-    "findings": {"type": "array", "items": {"type": "string"}},
-    "coverage": {"type": "string", "minLength": 1},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "./finding.schema.json"}
+    },
+    "coverage": {"$ref": "./coverage.schema.json"},
     "limitations": {"type": "array", "items": {"type": "string"}},
     "verification_summary": {"type": "object", "additionalProperties": true},
     "cost_summary": {"type": "object", "additionalProperties": true},
