@@ -60,14 +60,14 @@ Evidence is the smallest durable unit used to justify a conclusion.
 Required fields:
 
 ```text
- evidence_id
- evidence_type
- repository_revision
- source_reference
- locator
- excerpt_or_artifact_reference
- provenance
- generated_at
+evidence_id
+evidence_type
+repository_revision
+source_reference
+locator
+excerpt_or_artifact_reference
+provenance
+generated_at
 ```
 
 Evidence types include:
@@ -298,7 +298,7 @@ unsupported
 A completed audit contains:
 
 ```text
-aud_it_summary
+audit_summary
 system_model_reference
 findings[]
 coverage
