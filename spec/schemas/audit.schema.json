@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/audit.schema.json",
+  "title": "Code Base Gap Audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["audit_id", "project_id", "repository_revision", "configuration_hash", "analysis_profile", "state"],
+  "properties": {
+    "audit_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "repository_revision": {"type": "string", "minLength": 1},
+    "configuration_hash": {"type": "string", "minLength": 1},
+    "analysis_profile": {"type": "string", "minLength": 1},
+    "state": {
+      "type": "string",
+      "enum": [
+        "CREATED",
+        "QUEUED",
+        "PREPARING",
+        "INGESTING",
+        "RECONNAISSANCE",
+        "PARSING",
+        "INDEXING",
+        "GRAPH_BUILDING",
+        "BASELINE_ANALYSIS",
+        "SYSTEM_RECONSTRUCTION",
+        "CONTRACT_DISCOVERY",
+        "GAP_ANALYSIS",
+        "HYPOTHESIS_ANALYSIS",
+        "VERIFICATION",
+        "COUNTER_ANALYSIS",
+        "JUDGING",
+        "REPORTING",
+        "REMEDIATION",
+        "REVALIDATION",
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "created_at": {"type": ["string", "null"], "format": "date-time"},
+    "updated_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
