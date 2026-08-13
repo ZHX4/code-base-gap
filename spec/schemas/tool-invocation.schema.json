@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/tool-invocation.schema.json",
+  "title": "Code Base Gap Tool Invocation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool_invocation_id", "tool_name", "tool_version", "arguments_hash", "execution_environment", "started_at", "completed_at", "exit_code", "stdout_reference", "stderr_reference", "artifact_references"],
+  "properties": {
+    "tool_invocation_id": {"type": "string", "minLength": 1},
+    "tool_name": {"type": "string", "minLength": 1},
+    "tool_version": {"type": "string", "minLength": 1},
+    "arguments_hash": {"type": "string", "minLength": 1},
+    "execution_environment": {"type": "object", "additionalProperties": true},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "exit_code": {"type": ["integer", "null"]},
+    "stdout_reference": {"type": ["string", "null"]},
+    "stderr_reference": {"type": ["string", "null"]},
+    "artifact_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}
