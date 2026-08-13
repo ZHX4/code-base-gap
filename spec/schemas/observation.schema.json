@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/observation.schema.json",
+  "title": "Code Base Gap Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["observation_id", "observation_type", "source_kind", "source_reference", "repository_revision", "location", "payload", "created_at", "tool_name", "tool_version", "invocation_id"],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 1},
+    "observation_type": {"type": "string", "minLength": 1},
+    "source_kind": {"type": "string", "enum": ["repository_inspection", "static_analysis", "runtime", "test", "dependency_analysis", "configuration_analysis", "model_derived"]},
+    "source_reference": {"type": "string", "minLength": 1},
+    "repository_revision": {"type": "string", "minLength": 1},
+    "location": {"type": ["object", "null"], "additionalProperties": true},
+    "payload": {},
+    "created_at": {"type": "string", "format": "date-time"},
+    "tool_name": {"type": "string", "minLength": 1},
+    "tool_version": {"type": "string", "minLength": 1},
+    "invocation_id": {"type": "string", "minLength": 1},
+    "derived_from": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}
