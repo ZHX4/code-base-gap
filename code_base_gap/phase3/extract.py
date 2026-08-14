@@ -53,8 +53,7 @@ def _walk(root: object):
     while stack:
         node = stack.pop()
         yield node
-        children = list(getattr(node, "named_children", []))
-        stack.extend(reversed(children))
+        stack.extend(reversed(list(getattr(node, "named_children", []))))
 
 
 def _name_node(node: object) -> object | None:
@@ -129,14 +128,29 @@ def _extract_imports(tree: ParseTree) -> list[ImportRecord]:
 
 def _extract_exports(tree: ParseTree, symbols: list[SymbolRecord]) -> list[SymbolRecord]:
     text = tree.source.decode("utf-8", errors="replace")
-    exported = []
+    exported_names: set[str] = set()
     for match in re.finditer(r"^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)", text, re.M):
-        exported.append((match.group(1), _span_from_text(tree.source, match.start(), match.end())))
+        exported_names.add(match.group(1))
+    for match in re.finditer(r"\bexport\s*\{([^}]+)\}", text):
+        exported_names.update(
+            part.split(" as ", 1)[0].strip()
+            for part in match.group(1).split(",")
+            if part.strip()
+        )
     return [
         SymbolRecord(s.symbol_id, s.name, s.kind, s.span, s.parent_symbol_id, True, s.signature)
-        for s in symbols
-        if any(name == s.name and span.start_byte <= s.span.start_byte <= span.end_byte for name, span in exported)
+        for s in symbols if s.name in exported_names
     ]
+
+
+def _context_symbol(span: Span, symbols: list[SymbolRecord]) -> str | None:
+    containing = [
+        symbol for symbol in symbols
+        if symbol.span.start_byte <= span.start_byte and symbol.span.end_byte >= span.end_byte
+    ]
+    if not containing:
+        return None
+    return min(containing, key=lambda x: x.span.end_byte - x.span.start_byte).symbol_id
 
 
 def _extract_references(tree: ParseTree, symbols: list[SymbolRecord], imports: list[ImportRecord]) -> list[ReferenceRecord]:
@@ -145,10 +159,12 @@ def _extract_references(tree: ParseTree, symbols: list[SymbolRecord], imports: l
     for node in _walk(tree.root):
         if getattr(node, "type", "") not in IDENTIFIER_TYPES:
             continue
-        start, end = int(node.start_byte), int(node.end_byte)
-        if any(a <= start and end <= b for a, b in excluded_ranges):
+        span = _span(node)
+        if any(a <= span.start_byte and span.end_byte <= b for a, b in excluded_ranges):
             continue
-        references.append(ReferenceRecord(_text(node, tree.source), "identifier", _span(node), None, None))
+        references.append(ReferenceRecord(
+            _text(node, tree.source), "identifier", span, _context_symbol(span, symbols), None
+        ))
     return _dedup(references, lambda x: (x.name, x.span.start_byte, x.span.end_byte))
 
 
@@ -193,17 +209,19 @@ def _extract_endpoints(tree: ParseTree) -> list[EndpointRecord]:
     return _dedup(records, lambda x: (x.framework, x.method, x.path, x.span.start_byte))
 
 
-def _extract_queries(tree: ParseTree) -> list[QueryRecord]:
+def _extract_queries(tree: ParseTree, symbols: list[SymbolRecord]) -> list[QueryRecord]:
     records: list[QueryRecord] = []
     for node in _walk(tree.root):
         kind = QUERY_TYPES.get(getattr(node, "type", ""))
         if kind:
-            records.append(QueryRecord(kind, _text(node, tree.source), _span(node)))
+            span = _span(node)
+            records.append(QueryRecord(kind, _text(node, tree.source), span, _context_symbol(span, symbols)))
     if tree.language in {"javascript", "typescript", "tsx", "python"}:
         text = tree.source.decode("utf-8", errors="replace")
         for match in re.finditer(r"['\"]((?:SELECT|INSERT|UPDATE|DELETE)\b.+?)['\"]", text, re.I | re.S):
             query = match.group(1).strip()
-            records.append(QueryRecord(query.split(None, 1)[0].upper(), query, _span_from_text(tree.source, match.start(), match.end())))
+            span = _span_from_text(tree.source, match.start(), match.end())
+            records.append(QueryRecord(query.split(None, 1)[0].upper(), query, span, _context_symbol(span, symbols)))
     return _dedup(records, lambda x: (x.query_kind, x.span.start_byte, x.span.end_byte))
 
 
@@ -246,7 +264,7 @@ def extract_parsed_file(tree: ParseTree, relative_path: str) -> ParsedFile:
     references = _extract_references(tree, symbols, imports)
     integrations, tests = _extract_calls(tree)
     endpoints = _extract_endpoints(tree)
-    queries = _extract_queries(tree)
+    queries = _extract_queries(tree, symbols)
     configs = _extract_configs(tree)
     return ParsedFile(
         path=relative_path, language=tree.language, source_sha256=tree.source_sha256,
