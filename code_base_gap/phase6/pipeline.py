@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .inputs import load_inputs
 from .models import SystemModel
-from .reconstruct import reconstruct_system
+from .reconstruct import reconstruct_system as _reconstruct_model
 
 
 def reconstruct_system_from_files(reconnaissance: Path, graph: Path) -> SystemModel:
@@ -14,7 +14,7 @@ def reconstruct_system_from_files(reconnaissance: Path, graph: Path) -> SystemMo
     manifest_revision = inputs.reconnaissance["manifest"].get("repository_revision")
     if graph_revision and manifest_revision and graph_revision != manifest_revision:
         raise ValueError("Phase 2 and Phase 4 artifacts refer to different repository revisions")
-    return reconstruct_system(inputs.reconnaissance, inputs.graph)
+    return _reconstruct_model(inputs.reconnaissance, inputs.graph)
 
 
 def reconstruct_system(reconnaissance: Path, graph: Path) -> SystemModel:
