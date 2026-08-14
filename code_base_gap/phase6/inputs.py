@@ -29,7 +29,8 @@ def load_phase2_result(path: Path) -> dict[str, Any]:
     payload = _load(path)
     if not isinstance(payload.get("manifest"), dict) or not isinstance(payload.get("reconnaissance"), dict):
         raise ValueError("Phase 2 input must contain manifest and reconnaissance objects")
-    if payload["manifest"].get("repository_revision") is None:
+    revision = payload["manifest"].get("repository_revision")
+    if not isinstance(revision, str) or not revision:
         raise ValueError("Phase 2 manifest must contain repository_revision")
     return payload
 
@@ -38,11 +39,29 @@ def load_phase4_graph(path: Path) -> dict[str, Any]:
     payload = _load(path)
     if payload.get("schema_version") != "phase4.program-knowledge-graph.v1":
         raise ValueError("unsupported Phase 4 graph schema version")
-    if not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("edges"), list):
+    nodes = payload.get("nodes")
+    edges = payload.get("edges")
+    if not isinstance(nodes, list) or not isinstance(edges, list):
         raise ValueError("Phase 4 graph must contain nodes and edges arrays")
-    node_ids = {node.get("node_id") for node in payload["nodes"] if isinstance(node, dict)}
-    for edge in payload["edges"]:
-        if not isinstance(edge, dict) or edge.get("source") not in node_ids or edge.get("target") not in node_ids:
+    node_ids: set[str] = set()
+    for node in nodes:
+        if not isinstance(node, dict) or not isinstance(node.get("node_id"), str) or not node["node_id"]:
+            raise ValueError("Phase 4 graph contains an invalid node")
+        node_id = node["node_id"]
+        if node_id in node_ids:
+            raise ValueError(f"Phase 4 graph contains duplicate node ID: {node_id}")
+        node_ids.add(node_id)
+    edge_ids: set[str] = set()
+    for edge in edges:
+        if not isinstance(edge, dict):
+            raise ValueError("Phase 4 graph contains an invalid edge")
+        edge_id = edge.get("edge_id")
+        if not isinstance(edge_id, str) or not edge_id:
+            raise ValueError("Phase 4 graph contains an edge without a valid ID")
+        if edge_id in edge_ids:
+            raise ValueError(f"Phase 4 graph contains duplicate edge ID: {edge_id}")
+        edge_ids.add(edge_id)
+        if edge.get("source") not in node_ids or edge.get("target") not in node_ids:
             raise ValueError("Phase 4 graph contains an orphan edge")
     return payload
 
