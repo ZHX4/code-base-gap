@@ -15,25 +15,27 @@ def run_phase5(
     enable_external_tools: bool = True,
     timeout_s: int = 300,
     max_file_bytes: int = 2_000_000,
+    max_files: int = 100_000,
 ) -> ScanReport:
+    if timeout_s <= 0 or max_file_bytes <= 0 or max_files <= 0:
+        raise ValueError("Phase 5 limits must be positive")
     root = root.resolve()
     if not root.is_dir():
         raise ValueError("Phase 5 workspace must be a directory")
 
     report = ScanReport(repository_revision=repository_revision)
-    report.findings.extend(scan_secrets(root, max_file_bytes))
-    report.findings.extend(scan_code_patterns(root, max_file_bytes))
-    report.findings.extend(scan_infrastructure(root))
+    report.findings.extend(scan_secrets(root, max_file_bytes, max_files))
+    report.findings.extend(scan_code_patterns(root, max_file_bytes, max_files))
+    report.findings.extend(scan_infrastructure(root, max_file_bytes, max_files))
 
     if not enable_external_tools:
         report.limitations.append("external analyzers disabled by profile")
     else:
-        adapters = (
+        for name, action in (
             ("semgrep", lambda: run_semgrep(root, timeout_s)),
             ("gitleaks", lambda: run_gitleaks(root, timeout_s)),
             ("trivy", lambda: run_trivy(root, timeout_s)),
-        )
-        for name, action in adapters:
+        ):
             run, findings = action()
             report.tool_runs.append(run)
             report.findings.extend(findings)
