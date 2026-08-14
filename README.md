@@ -11,19 +11,43 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 ## Current status
 
 - **Phase 1 — Product Definition & Technical Specification:** complete.
-- **Phase 2+ — Implementation:** not started.
+- **Phase 2 — Repository Ingestion & Reconnaissance:** complete.
+- **Phase 3+ — Implementation:** not started.
 
-The authoritative Phase 1 specification lives under [`docs/phase-1/`](docs/phase-1/).
+The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/) and [`docs/phase-2/`](docs/phase-2/).
 
-### Phase 1 validation
+## Phase 2 usage
 
-Run the repository's standard-library validator locally:
+Run the local repository audit/reconnaissance pipeline without executing repository code:
 
 ```bash
-python scripts/validate_phase1.py
+python -m code_base_gap.phase2.cli /path/to/repository --output audit.json
+python -m code_base_gap.phase2.cli https://github.com/org/repository.git --ref main --output audit.json
 ```
 
-The same validation runs automatically in GitHub Actions whenever Phase 1 specification artifacts change.
+After installation:
+
+```bash
+code-base-gap /path/to/repository --output audit.json
+```
+
+The Phase 2 implementation is intentionally non-executing: it does not install dependencies, run tests, invoke lifecycle scripts, build containers, start applications, or execute repository hooks.
+
+## Phase 2 validation
+
+Run the structural validator:
+
+```bash
+python scripts/validate_phase2.py
+```
+
+Run the unit tests:
+
+```bash
+python -m unittest discover -s tests -p 'test_*.py'
+```
+
+GitHub Actions is not part of the Phase 2 completion criterion in this project; local code, tests, schemas, and the documented Definition of Done are authoritative.
 
 ## Core principles
 
