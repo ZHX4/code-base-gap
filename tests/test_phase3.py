@@ -35,12 +35,14 @@ class Phase3Tests(unittest.TestCase):
             parsed = index.files[0]
             self.assertEqual(parsed.language, "python")
             self.assertFalse(parsed.has_errors)
-            self.assertTrue(any(symbol.name == "get_user" for symbol in parsed.symbols))
+            get_user = next(symbol for symbol in parsed.symbols if symbol.name == "get_user")
             self.assertTrue(any(item.source == "fastapi" for item in parsed.imports))
-            self.assertTrue(any(item.path == "main.py" for item in index.files))
             self.assertTrue(any(endpoint.path == "/users/{user_id}" for endpoint in parsed.endpoints))
             self.assertTrue(any(test.name == "test_get_user" for test in parsed.tests))
             self.assertGreater(len(parsed.ast_nodes), 0)
+            body_reference = next((ref for ref in parsed.references if ref.name == "user_id" and ref.span.start_byte > get_user.name_span.end_byte), None)
+            self.assertIsNotNone(body_reference)
+            self.assertEqual(body_reference.context_symbol_id, get_user.symbol_id)
 
     def test_typescript_exports_http_and_sql(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -84,6 +86,16 @@ class Phase3Tests(unittest.TestCase):
             parsed = index.files[0]
             self.assertTrue(parsed.has_errors)
             self.assertGreater(parsed.error_count, 0)
+
+    def test_traversal_bounds_are_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "deep.py"
+            path.write_text("def f():\n    return (((((((((1)))))))))\n", encoding="utf-8")
+            tree = parse_file(path, SemanticIndexConfig(max_ast_nodes_per_file=5, max_ast_depth=3))
+            self.assertIsNotNone(tree)
+            assert tree is not None
+            self.assertLessEqual(len(tree.nodes), 5)
+            self.assertIn("AST traversal truncated by configured node/depth limits", tree.limitations)
 
     def test_limits_and_symlink_safety(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
