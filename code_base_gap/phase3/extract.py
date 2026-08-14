@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from .models import (
     ConfigRecord, EndpointRecord, ImportRecord, IntegrationRecord, ParsedFile,
@@ -82,25 +81,13 @@ def _extract_symbols(tree: ParseTree) -> list[SymbolRecord]:
         name = _text(name_node, tree.source).strip()
         if not name:
             continue
-        symbol = SymbolRecord(
+        symbols.append(SymbolRecord(
             f"{tree.source_sha256[:16]}:{serial}:{kind}:{name}", name, kind, _span(node)
-        )
+        ))
         serial += 1
-        symbols.append(symbol)
     symbols.sort(key=lambda s: (s.span.start_byte, -(s.span.end_byte - s.span.start_byte)))
     enriched: list[SymbolRecord] = []
     for symbol in symbols:
-        parent = next(
-            (
-                candidate for candidate in reversed(symbols)
-                if candidate.symbol_id != symbol.symbol_id
-                and candidate.span.start_byte <= symbol.span.start_byte
-                and candidate.span.end_byte >= symbol.span.end_byte
-                and (parent is None if False else True)
-            ),
-            None,
-        )
-        # The candidate list is refined below to the smallest containing symbol.
         containing = [
             candidate for candidate in symbols
             if candidate.symbol_id != symbol.symbol_id
@@ -131,10 +118,12 @@ def _extract_imports(tree: ParseTree) -> list[ImportRecord]:
         imported = tuple(x.strip() for x in re.split(r"[,()]", match.group(2)) if x.strip())
         records.append(ImportRecord(match.group(1), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
     for match in py_plain.finditer(text):
-        imported = tuple(x.strip() for x in match.group(1).split(",") if x.strip())
-        for item in imported:
+        for item in (x.strip() for x in match.group(1).split(",")):
+            if not item:
+                continue
             source = item.split(" as ", 1)[0].strip()
-            records.append(ImportRecord(source, (source,), (item,), "static", _span_from_text(tree.source, match.start(), match.end())))
+            local = item.split(" as ", 1)[1].strip() if " as " in item else source
+            records.append(ImportRecord(source, (source,), (local,), "static", _span_from_text(tree.source, match.start(), match.end())))
     return _dedup(records, lambda x: (x.source, x.span.start_byte, x.span.end_byte, x.kind))
 
 
@@ -233,8 +222,7 @@ def _span_from_text(source: bytes, start: int, end: int) -> Span:
         prefix = source[:offset]
         line = prefix.count(b"\n") + 1
         last = prefix.rfind(b"\n")
-        column = offset - (last + 1) + 1
-        return Position(line, column)
+        return Position(line, offset - (last + 1) + 1)
     return Span(start, end, point(start), point(end))
 
 
