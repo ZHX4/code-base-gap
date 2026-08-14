@@ -26,6 +26,8 @@ QUERY_TYPES = {
     "alter_table_statement": "ALTER_TABLE", "drop_table_statement": "DROP_TABLE",
 }
 IDENTIFIER_TYPES = {"identifier", "property_identifier", "type_identifier", "shorthand_property_identifier_pattern"}
+JS_TS_LANGUAGES = {"javascript", "typescript", "tsx"}
+PYTHON_LANGUAGES = {"python"}
 
 
 def _span(node: object) -> Span:
@@ -97,9 +99,9 @@ def _extract_symbols(tree: ParseTree) -> list[SymbolRecord]:
     enriched: list[SymbolRecord] = []
     stack: list[SymbolRecord] = []
     for symbol in symbols:
-        while stack and stack[-1].span.end_byte < symbol.span.end_byte:
+        while stack and stack[-1].span.end_byte < symbol.span.start_byte:
             stack.pop()
-        parent = stack[-1] if stack and stack[-1].span.end_byte >= symbol.span.end_byte else None
+        parent = stack[-1] if stack and stack[-1].span.start_byte <= symbol.span.start_byte and stack[-1].span.end_byte >= symbol.span.end_byte else None
         enriched.append(SymbolRecord(
             symbol.symbol_id, symbol.name, symbol.kind, symbol.span, symbol.name_span,
             parent.symbol_id if parent else None, symbol.exported, symbol.signature,
@@ -108,28 +110,43 @@ def _extract_symbols(tree: ParseTree) -> list[SymbolRecord]:
     return enriched
 
 
+def _parse_specifiers(text: str) -> tuple[str, ...]:
+    values: list[str] = []
+    for item in re.split(r",", text):
+        item = item.strip().strip("{}")
+        if not item:
+            continue
+        local = item.split(" as ", 1)[-1].strip()
+        values.append(local)
+    return tuple(values)
+
+
 def _extract_imports(tree: ParseTree) -> list[ImportRecord]:
     records: list[ImportRecord] = []
     text = tree.source.decode("utf-8", errors="replace")
-    for match in re.finditer(r"^\s*import\s+(.+?)\s+from\s+[\"']([^\"']+)[\"']", text, re.M):
-        imported = tuple(x.strip() for x in re.split(r"[,{}]", match.group(1)) if x.strip())
-        records.append(ImportRecord(match.group(2), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
-    for match in re.finditer(r"^\s*import\s+[\"']([^\"']+)[\"']", text, re.M):
-        records.append(ImportRecord(match.group(1), ("*",), (), "side-effect", _span_from_text(tree.source, match.start(), match.end())))
-    for match in re.finditer(r"^\s*from\s+([^\s]+)\s+import\s+(.+)$", text, re.M):
-        imported = tuple(x.strip() for x in re.split(r"[,()]", match.group(2)) if x.strip())
-        records.append(ImportRecord(match.group(1), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
-    for match in re.finditer(r"^\s*import\s+(.+)$", text, re.M):
-        for item in (x.strip() for x in match.group(1).split(",")):
-            if not item:
-                continue
-            source = item.split(" as ", 1)[0].strip()
-            local = item.split(" as ", 1)[1].strip() if " as " in item else source
-            records.append(ImportRecord(source, (source,), (local,), "static", _span_from_text(tree.source, match.start(), match.end())))
+    if tree.language in JS_TS_LANGUAGES:
+        for match in re.finditer(r"^\s*import\s+(.+?)\s+from\s+[\"']([^\"']+)[\"']", text, re.M):
+            imported = _parse_specifiers(match.group(1))
+            records.append(ImportRecord(match.group(2), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
+        for match in re.finditer(r"^\s*import\s+[\"']([^\"']+)[\"']", text, re.M):
+            records.append(ImportRecord(match.group(1), ("*",), (), "side-effect", _span_from_text(tree.source, match.start(), match.end())))
+    elif tree.language in PYTHON_LANGUAGES:
+        for match in re.finditer(r"^\s*from\s+([^\s]+)\s+import\s+(.+)$", text, re.M):
+            imported = _parse_specifiers(match.group(2))
+            records.append(ImportRecord(match.group(1), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
+        for match in re.finditer(r"^\s*import\s+(.+)$", text, re.M):
+            for item in (x.strip() for x in match.group(1).split(",")):
+                if not item:
+                    continue
+                source = item.split(" as ", 1)[0].strip()
+                local = item.split(" as ", 1)[1].strip() if " as " in item else source
+                records.append(ImportRecord(source, (source,), (local,), "static", _span_from_text(tree.source, match.start(), match.end())))
     return _dedup(records, lambda x: (x.source, x.span.start_byte, x.span.end_byte, x.kind))
 
 
 def _extract_exports(tree: ParseTree, symbols: list[SymbolRecord]) -> list[SymbolRecord]:
+    if tree.language not in JS_TS_LANGUAGES:
+        return []
     text = tree.source.decode("utf-8", errors="replace")
     exported_names: set[str] = set()
     for match in re.finditer(r"^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)", text, re.M):
@@ -175,13 +192,17 @@ def _extract_calls(tree: ParseTree) -> tuple[list[IntegrationRecord], list[TestR
         if kind:
             integrations.append(IntegrationRecord(base, kind, _span(node)))
         if base.lower() in {"test", "it", "describe", "suite", "pytest"}:
-            tests.append(TestRecord("javascript" if base.lower() != "pytest" else "pytest", call_text, _span(node)))
-    for match in re.finditer(r"^\s*def\s+(test_[A-Za-z0-9_]+)\s*\(", text, re.M):
-        tests.append(TestRecord("pytest", match.group(1), _span_from_text(tree.source, match.start(), match.end())))
+            framework = "javascript" if tree.language in JS_TS_LANGUAGES else "pytest"
+            tests.append(TestRecord(framework, call_text, _span(node)))
+    if tree.language == "python":
+        for match in re.finditer(r"^\s*def\s+(test_[A-Za-z0-9_]+)\s*\(", text, re.M):
+            tests.append(TestRecord("pytest", match.group(1), _span_from_text(tree.source, match.start(), match.end())))
     return _dedup(integrations, lambda x: (x.integration, x.span.start_byte)), _dedup(tests, lambda x: (x.name, x.span.start_byte, x.framework))
 
 
 def _extract_endpoints(tree: ParseTree) -> list[EndpointRecord]:
+    if tree.language not in JS_TS_LANGUAGES | PYTHON_LANGUAGES:
+        return []
     text = tree.source.decode("utf-8", errors="replace")
     patterns = [
         ("express", re.compile(r"\b(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*['\"]([^'\"]+)['\"]", re.I)),
@@ -206,7 +227,7 @@ def _extract_queries(tree: ParseTree, symbols: list[SymbolRecord]) -> list[Query
         if kind:
             span = _span(node)
             records.append(QueryRecord(kind, _text(node, tree.source), span, _context_symbol(span, symbols)))
-    if tree.language in {"javascript", "typescript", "tsx", "python"}:
+    if tree.language in JS_TS_LANGUAGES | PYTHON_LANGUAGES:
         text = tree.source.decode("utf-8", errors="replace")
         for match in re.finditer(r"['\"]((?:SELECT|INSERT|UPDATE|DELETE)\b.+?)['\"]", text, re.I | re.S):
             query = match.group(1).strip()
