@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import posixpath
-import re
 from collections import defaultdict
 from typing import Any
 
@@ -32,15 +30,14 @@ def _e(source: str, subject: str, detail: str, provenance: Provenance) -> Eviden
     return EvidenceRef(source=source, subject=subject, detail=detail, provenance=provenance)
 
 
-def _graph_maps(graph: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+def _graph_maps(graph: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     nodes = {str(node["node_id"]): node for node in graph.get("nodes", [])}
-    edges = list(graph.get("edges", []))
     outgoing: dict[str, list[dict[str, Any]]] = defaultdict(list)
     incoming: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for edge in edges:
+    for edge in graph.get("edges", []):
         outgoing[str(edge["source"])].append(edge)
         incoming[str(edge["target"])].append(edge)
-    return nodes, edges, outgoing, incoming
+    return nodes, outgoing, incoming
 
 
 def _component_root(path: str, known_roots: list[str]) -> str:
@@ -76,7 +73,8 @@ def _component_kind(root: str, path_count: int) -> ComponentKind:
 
 
 def _file_path(node: dict[str, Any]) -> str | None:
-    value = node.get("properties", {}).get("path") if isinstance(node.get("properties"), dict) else None
+    properties = node.get("properties")
+    value = properties.get("path") if isinstance(properties, dict) else None
     return str(value) if value else None
 
 
@@ -84,16 +82,24 @@ def _node_kind(node: dict[str, Any]) -> str:
     return str(node.get("kind", "unknown"))
 
 
+def _add_repository_signal(model: SystemModel, category: str, value: object, detail: str) -> None:
+    text = str(value)
+    model.signals.append(ReconstructionSignal(
+        _id("signal", category, text), category, text, Provenance.OBSERVED,
+        (_e("phase2.reconnaissance", text, detail, Provenance.OBSERVED),),
+    ))
+
+
 def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemModel:
     manifest = recon["manifest"]
     reconnaissance = recon["reconnaissance"]
     revision = str(manifest["repository_revision"])
-    nodes, edges, outgoing, incoming = _graph_maps(graph)
+    nodes, outgoing, incoming = _graph_maps(graph)
     model = SystemModel(repository_revision=revision)
 
     file_nodes = [node for node in nodes.values() if _node_kind(node) == "file"]
     files_by_path = {_file_path(node): node for node in file_nodes if _file_path(node)}
-    known_roots = list(reconnaissance.get("source_roots", []))
+    known_roots = [str(item) for item in reconnaissance.get("source_roots", [])]
 
     files_by_root: dict[str, list[tuple[str, dict[str, Any]]]] = defaultdict(list)
     for path, node in files_by_path.items():
@@ -104,10 +110,13 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         component_id = _id("component", revision, root)
         component_by_root[root] = component_id
         languages = sorted({str(entry[1].get("properties", {}).get("language")) for entry in entries if entry[1].get("properties", {}).get("language")})
-        frameworks = sorted(set(str(value) for value in reconnaissance.get("frameworks", [])))
-        provenance = Provenance.OBSERVED if root in known_roots else Provenance.INFERRED
-        evidence = [_e("phase2.reconnaissance", root, "source root explicitly reported by Phase 2", Provenance.OBSERVED)] if root in known_roots else [_e("phase4.graph", root, "component root inferred from file-path topology", Provenance.INFERRED)]
-        model.components.append(SystemComponent(component_id, root, _component_kind(root, len(entries)), (root,), tuple(languages), tuple(frameworks), provenance, tuple(evidence)))
+        # Phase 2 framework detection is repository-level and is therefore kept as a signal,
+        # not attributed to every inferred component without direct file evidence.
+        provenance = Provenance.INFERRED
+        evidence = [_e("phase2.reconnaissance", root, "source root explicitly reported by Phase 2 and used as topology evidence", Provenance.OBSERVED)] if root in known_roots else [_e("phase4.graph", root, "component root inferred from file-path topology", Provenance.INFERRED)]
+        model.components.append(SystemComponent(
+            component_id, root, _component_kind(root, len(entries)), (root,), tuple(languages), (), provenance, tuple(evidence)
+        ))
 
     file_to_component = {}
     for root, entries in files_by_root.items():
@@ -131,10 +140,10 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
             props.get("path"),
             props.get("method"),
             file_path,
-            props.get("handler_hint"),
+            None,
             component_id,
             Provenance.OBSERVED,
-            (_e("phase4.graph", str(node["node_id"]), "endpoint node exposes an application entry point", Provenance.OBSERVED),),
+            (_e("phase4.graph", str(node["node_id"]), "endpoint node explicitly exposes an application entry point", Provenance.OBSERVED),),
         ))
 
     query_nodes = [node for node in nodes.values() if _node_kind(node) == "query"]
@@ -144,13 +153,14 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         text = str(props.get("text", ""))
         kind = str(props.get("query_kind", "unknown"))
         qkind = kind.lower()
-        if any(token in text.lower() for token in ("postgres", "postgresql")):
+        lowered = text.lower()
+        if any(token in lowered for token in ("postgres", "postgresql")):
             store_kind = "postgresql"
-        elif "mysql" in text.lower():
+        elif "mysql" in lowered:
             store_kind = "mysql"
-        elif "sqlite" in text.lower():
+        elif "sqlite" in lowered:
             store_kind = "sqlite"
-        elif "mongodb" in text.lower() or "mongoose" in text.lower():
+        elif "mongodb" in lowered or "mongoose" in lowered:
             store_kind = "mongodb"
         else:
             store_kind = "database"
@@ -215,12 +225,11 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         ))
 
     for dep in model.external_dependencies:
-        consumers = dep.consuming_components
-        if consumers:
+        if dep.consuming_components:
             boundary_kind = BoundaryKind.EXTERNAL_SERVICE if dep.kind in {"integration", "external_module"} else BoundaryKind.UNKNOWN
             model.trust_boundaries.append(TrustBoundary(
                 _id("boundary", revision, boundary_kind.value, dep.dependency_id),
-                boundary_kind, dep.name, consumers, (), Provenance.INFERRED,
+                boundary_kind, dep.name, dep.consuming_components, (), Provenance.INFERRED,
                 (_e("phase4.graph", dep.dependency_id, "external integration/module forms a trust-boundary signal", Provenance.INFERRED),),
             ))
 
@@ -230,11 +239,6 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
             BoundaryKind.DATABASE, store.name, store.component_ids, (), Provenance.INFERRED,
             (_e("phase4.graph", store.data_store_id, "query activity indicates a data-store interaction; actual deployment topology is not proven", Provenance.INFERRED),),
         ))
-
-    endpoint_by_file: dict[str, list[EntryPoint]] = defaultdict(list)
-    for entry in model.entry_points:
-        if entry.file_path:
-            endpoint_by_file[entry.file_path].append(entry)
 
     query_by_file: dict[str, list[str]] = defaultdict(list)
     for node in query_nodes:
@@ -258,13 +262,10 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         if not entry.file_path:
             continue
         steps = [entry.entry_point_id]
-        component_id = entry.component_id
-        if component_id:
-            steps.append(component_id)
-        for query_id in sorted(set(query_by_file.get(entry.file_path, [])))[:8]:
-            steps.append(query_id)
-        for integration_id in sorted(set(integration_by_file.get(entry.file_path, [])))[:8]:
-            steps.append(integration_id)
+        if entry.component_id:
+            steps.append(entry.component_id)
+        steps.extend(sorted(set(query_by_file.get(entry.file_path, [])))[:8])
+        steps.extend(sorted(set(integration_by_file.get(entry.file_path, [])))[:8])
         if len(steps) > 1:
             model.critical_paths.append(CriticalPath(
                 _id("path", revision, entry.entry_point_id), entry.entry_point_id, tuple(steps),
@@ -274,20 +275,22 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
             ))
 
     for language, count in sorted((reconnaissance.get("languages") or {}).items()):
-        model.signals.append(ReconstructionSignal(
-            _id("signal", "language", language), "language", f"{language}:{count}", Provenance.OBSERVED,
-            (_e("phase2.reconnaissance", language, f"Phase 2 detected {count} file(s)", Provenance.OBSERVED),),
-        ))
+        _add_repository_signal(model, "language", f"{language}:{count}", f"Phase 2 detected {count} file(s) for {language}")
     for framework in sorted(set(reconnaissance.get("frameworks", []))):
-        model.signals.append(ReconstructionSignal(
-            _id("signal", "framework", framework), "framework", framework, Provenance.OBSERVED,
-            (_e("phase2.reconnaissance", framework, "Phase 2 framework detection", Provenance.OBSERVED),),
-        ))
+        _add_repository_signal(model, "framework", framework, "Phase 2 framework detection")
+    for manager in sorted(set(reconnaissance.get("package_managers", []))):
+        _add_repository_signal(model, "package-manager", manager, "Phase 2 package-manager detection")
+    for build_system in sorted(set(reconnaissance.get("build_systems", []))):
+        _add_repository_signal(model, "build-system", build_system, "Phase 2 build-system detection")
+    for framework in sorted(set(reconnaissance.get("test_frameworks", []))):
+        _add_repository_signal(model, "test-framework", framework, "Phase 2 test-framework detection")
+    for ci in sorted(set(reconnaissance.get("cicd", []))):
+        _add_repository_signal(model, "cicd", ci, "Phase 2 CI/CD detection")
+    for deployment in sorted(set(reconnaissance.get("deployment", []))):
+        _add_repository_signal(model, "deployment", deployment, "Phase 2 deployment detection")
     for root in sorted(set(known_roots)):
-        model.signals.append(ReconstructionSignal(
-            _id("signal", "source-root", root), "source-root", root, Provenance.OBSERVED,
-            (_e("phase2.reconnaissance", root, "Phase 2 source root", Provenance.OBSERVED),),
-        ))
+        _add_repository_signal(model, "source-root", root, "Phase 2 source root")
+
     for limitation in manifest.get("limitations", []):
         model.limitations.append(str(limitation))
     for limitation in reconnaissance.get("limitations", []):
