@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import tempfile
@@ -28,12 +27,15 @@ class ResolvedSource:
 
 
 def _request_json(url: str, timeout: float = 20.0) -> dict:
-    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "code-base-gap/0.1"})
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "code-base-gap/0.1"},
+    )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
-        raise SourceError(f"GitHub API request failed: {url}: {type(exc).__name__}") from exc
+        raise SourceError(f"GitHub API request failed: {type(exc).__name__}") from exc
     if not isinstance(data, dict):
         raise SourceError("GitHub API response was not an object")
     return data
@@ -59,7 +61,9 @@ def resolve_github(source: str, requested_ref: str | None, destination: Path, ma
     meta = _request_json(f"https://api.github.com/repos/{owner}/{repo}")
     default_branch = str(meta.get("default_branch") or "main")
     ref = requested_ref or default_branch
-    ref_info = _request_json(f"https://api.github.com/repos/{owner}/{repo}/commits/{urllib.parse.quote(ref, safe='')}")
+    ref_info = _request_json(
+        f"https://api.github.com/repos/{owner}/{repo}/commits/{urllib.parse.quote(ref, safe='')}"
+    )
     revision = str(ref_info.get("sha") or "")
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise SourceError("GitHub did not return a 40-character commit SHA")
@@ -91,7 +95,8 @@ def resolve_github(source: str, requested_ref: str | None, destination: Path, ma
             members = zf.infolist()
             for member in members:
                 name = member.filename.replace("\\", "/")
-                if not name or name.startswith("/") or ":" in name.split("/")[0] or ".." in Path(name).parts:
+                parts = Path(name).parts
+                if not name or name.startswith("/") or ":" in name.split("/")[0] or ".." in parts:
                     raise SourceError(f"unsafe archive member: {member.filename}")
                 target = (workspace / name).resolve()
                 if workspace.resolve() not in target.parents and target != workspace.resolve():
@@ -108,14 +113,11 @@ def resolve_github(source: str, requested_ref: str | None, destination: Path, ma
         archive.unlink(missing_ok=True)
 
     roots = [path for path in workspace.iterdir() if path.is_dir()]
-    if len(roots) == 1:
-        actual_root = roots[0]
-    else:
-        actual_root = workspace
+    actual_root = roots[0] if len(roots) == 1 else workspace
     return ResolvedSource(source, requested_ref, revision, actual_root, "github", meta)
 
 
-def resolve_local(source: str, destination: Path) -> ResolvedSource:
+def resolve_local(source: str) -> ResolvedSource:
     root = Path(source).expanduser().resolve()
     if not root.is_dir():
         raise SourceError(f"local source is not a directory: {root}")
@@ -135,7 +137,10 @@ def resolve_local(source: str, destination: Path) -> ResolvedSource:
                     if packed.is_file():
                         for line in packed.read_text(encoding="ascii", errors="replace").splitlines():
                             if line and not line.startswith("#") and not line.startswith("^"):
-                                sha, name = line.split(" ", 1)
+                                try:
+                                    sha, name = line.split(" ", 1)
+                                except ValueError:
+                                    continue
                                 if name == ref:
                                     revision = sha
                                     break
@@ -155,4 +160,4 @@ def resolve_source(source: str, requested_ref: str | None, max_archive_bytes: in
             holder.cleanup()
             raise
         return resolved, holder
-    return resolve_local(source, Path(tempfile.mkdtemp(prefix="code-base-gap-phase2-local-"))) , None
+    return resolve_local(source), None
