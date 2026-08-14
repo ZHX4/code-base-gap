@@ -62,24 +62,23 @@ def _build_nodes(root: object, config: SemanticIndexConfig) -> tuple[tuple[AstNo
         node_id = next_id
         next_id += 1
         children = list(node.named_children if hasattr(node, "named_children") else [])
-        child_ids: list[int] = []
-        record = AstNodeRecord(
-            node_id=node_id,
-            parent_id=parent_id,
-            node_type=str(node.type),
-            named=bool(getattr(node, "is_named", True)),
-            span=_span(node),
-            child_ids=(),
-            field_name=field_name,
+        records.append(
+            AstNodeRecord(
+                node_id=node_id,
+                parent_id=parent_id,
+                node_type=str(node.type),
+                named=bool(getattr(node, "is_named", True)),
+                span=_span(node),
+                child_ids=(),
+                field_name=field_name,
+            )
         )
-        records.append(record)
-        # IDs are assigned in depth-first stack order; patch the parent's child IDs below.
-        for child in reversed(children):
-            child_field = node.field_name_for_child(child) if hasattr(node, "field_name_for_child") else None
+        for index in range(len(children) - 1, -1, -1):
+            child = children[index]
+            child_field = node.field_name_for_child(index) if hasattr(node, "field_name_for_child") else None
             stack.append((child, node_id, child_field, depth + 1))
     if truncated:
         limitations.append("AST traversal truncated by configured node/depth limits")
-    # Recompute child links from parent IDs without relying on mutable node objects.
     children_by_parent: dict[int, list[int]] = {}
     for record in records:
         if record.parent_id is not None:
@@ -107,9 +106,10 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
         source = path.read_bytes()
     except OSError as exc:
         return ParseTree(str(path), language_name, b"", "", None, (), False, 0, (f"unreadable source: {type(exc).__name__}",))
+    digest = hashlib.sha256(source).hexdigest()
     if len(source) > config.max_source_text_bytes or len(source) > config.max_file_bytes:
         return ParseTree(
-            str(path), language_name, b"", hashlib.sha256(source).hexdigest(), None, (), False, 0,
+            str(path), language_name, b"", digest, None, (), False, 0,
             ("source exceeds configured parsing byte limit",),
         )
     try:
@@ -124,12 +124,14 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
             if node.type == "ERROR" or bool(getattr(node, "is_missing", False)):
                 error_count += 1
             walk.extend(list(getattr(node, "named_children", [])))
+        if truncated:
+            limits = (*limits, "complete AST structure is not materialized because configured traversal limits were reached")
         return ParseTree(
-            str(path), language_name, source, hashlib.sha256(source).hexdigest(), tree.root_node,
-            nodes, error_count > 0, error_count, limits + (("AST traversal truncated",) if truncated and not limits else ()),
+            str(path), language_name, source, digest, tree.root_node,
+            nodes, error_count > 0, error_count, limits,
         )
     except Exception as exc:
         return ParseTree(
-            str(path), language_name, source, hashlib.sha256(source).hexdigest(), None, (), False, 0,
+            str(path), language_name, source, digest, None, (), False, 0,
             (f"parser failure: {type(exc).__name__}",),
         )
