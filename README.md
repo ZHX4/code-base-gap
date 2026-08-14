@@ -12,13 +12,14 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 
 - **Phase 1 — Product Definition & Technical Specification:** complete.
 - **Phase 2 — Repository Ingestion & Reconnaissance:** complete.
-- **Phase 3+ — Implementation:** not started.
+- **Phase 3 — Code Parsing & Semantic Indexing:** complete.
+- **Phase 4+ — Implementation:** not started.
 
-The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/) and [`docs/phase-2/`](docs/phase-2/).
+The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), and [`docs/phase-3/`](docs/phase-3/).
 
 ## Phase 2 usage
 
-Run the local repository audit/reconnaissance pipeline without executing repository code:
+Run the repository audit/reconnaissance pipeline without executing repository code:
 
 ```bash
 python -m code_base_gap.phase2.cli /path/to/repository --output audit.json
@@ -31,23 +32,38 @@ After installation:
 code-base-gap /path/to/repository --output audit.json
 ```
 
-The Phase 2 implementation is intentionally non-executing: it does not install dependencies, run tests, invoke lifecycle scripts, build containers, start applications, or execute repository hooks.
+## Phase 3 usage
 
-## Phase 2 validation
+Phase 3 parses supported source/configuration files and builds a machine-readable semantic index. It never executes repository code.
 
-Run the structural validator:
+```bash
+python -m code_base_gap.phase3.cli /path/to/repository --output semantic-index.json
+```
+
+After installation:
+
+```bash
+code-base-gap-parse /path/to/repository --output semantic-index.json
+```
+
+Install the project first so the Tree-sitter runtime and language pack are available.
+
+## Validation
+
+Structural validation:
 
 ```bash
 python scripts/validate_phase2.py
+python scripts/validate_phase3.py
 ```
 
-Run the unit tests:
+Unit tests:
 
 ```bash
 python -m unittest discover -s tests -p 'test_*.py'
 ```
 
-GitHub Actions is not part of the Phase 2 completion criterion in this project; local code, tests, schemas, and the documented Definition of Done are authoritative.
+GitHub Actions is not part of the phase completion criterion in this project; local code, tests, schemas, and the documented Definition of Done are authoritative.
 
 ## Core principles
 
