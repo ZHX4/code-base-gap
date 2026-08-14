@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/phase2-reconnaissance.schema.json",
+  "title": "Code Base Gap Phase 2 Reconnaissance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["languages", "frameworks", "package_managers", "build_systems", "test_frameworks", "cicd", "deployment", "source_roots", "likely_entry_points", "configuration_files", "documentation_files", "limitations"],
+  "properties": {
+    "languages": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}},
+    "frameworks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "package_managers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "build_systems": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "test_frameworks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "cicd": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "deployment": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source_roots": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "likely_entry_points": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "configuration_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "documentation_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "limitations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}
