@@ -55,13 +55,16 @@ class Phase5Tests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].severity, Severity.HIGH)
         self.assertEqual(findings[0].references, ("https://example.test/r1",))
+        self.assertEqual(findings[0].location.path, "src/app.py")
 
     def test_sarif_rejects_malformed_or_external_location(self) -> None:
         with self.assertRaises(json.JSONDecodeError):
             parse_sarif("not json", "test")
-        payload = {"version": "2.1.0", "runs": [{"tool": {"driver": {"rules": [{"id": "R1"}]}}, "results": [{"ruleId": "R1", "message": {"text": "x"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": "file:///tmp/x"}}}]}]}]}
-        finding = parse_sarif(json.dumps(payload), "test")[0]
-        self.assertIsNone(finding.location)
+        for uri in ("file:///tmp/x", "/etc/passwd", "C:/Windows/win.ini"):
+            payload = {"version": "2.1.0", "runs": [{"tool": {"driver": {"rules": [{"id": "R1"}]}}, "results": [{"ruleId": "R1", "message": {"text": "x"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": uri}}}]}]}]}
+            with self.subTest(uri=uri):
+                finding = parse_sarif(json.dumps(payload), "test")[0]
+                self.assertIsNone(finding.location)
 
     def test_deduplication_and_severity_selection(self) -> None:
         location = Location("a.py", 1, 1)
