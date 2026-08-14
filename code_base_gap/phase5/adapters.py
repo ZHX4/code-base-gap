@@ -10,6 +10,8 @@ from .models import Finding, ToolRun
 from .runner import run_tool
 from .sarif import parse_sarif
 
+MAX_GITLEAKS_REPORT_BYTES = 20_000_000
+
 
 def run_semgrep(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
     run = run_tool("semgrep", ["scan", "--config", "auto", "--sarif", "--quiet", str(root)], root, timeout_s)
@@ -19,13 +21,19 @@ def run_semgrep(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding
 def run_gitleaks(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
     fd, report_path = tempfile.mkstemp(prefix="cbg-gitleaks-", suffix=".sarif")
     os.close(fd)
-    Path(report_path).unlink(missing_ok=True)
+    path = Path(report_path)
     try:
-        run = run_tool("gitleaks", ["detect", "--source", str(root), "--no-git", "--report-format", "sarif", "--report-path", report_path], root, timeout_s)
-        report_text = Path(report_path).read_text(encoding="utf-8", errors="replace") if Path(report_path).is_file() else ""
+        path.unlink(missing_ok=True)
+        run = run_tool("gitleaks", ["detect", "--source", str(root), "--no-git", "--report-format", "sarif", "--report-path", str(path)], root, timeout_s)
+        report_text = ""
+        if path.is_file():
+            if path.stat().st_size <= MAX_GITLEAKS_REPORT_BYTES:
+                report_text = path.read_text(encoding="utf-8", errors="replace")
+            else:
+                run = ToolRun(run.metadata, run.exit_code, run.duration_ms, True, run.stdout, "gitleaks SARIF report exceeded the adapter size limit")
         return run, parse_sarif(report_text, "gitleaks") if report_text.lstrip().startswith("{") else []
     finally:
-        Path(report_path).unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
 
 
 def run_trivy(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
@@ -44,7 +52,6 @@ def run_syft(root: Path, timeout_s: int = 180) -> tuple[ToolRun, dict]:
 
 
 def run_codeql(root: Path, languages: list[str] | None = None, timeout_s: int = 600) -> tuple[ToolRun, list[Finding]]:
-    # Database creation/build execution is deliberately not performed in Phase 5.
     metadata = run_tool("codeql", ["version"], root, 10)
     if metadata.metadata.status == "unavailable":
         return metadata, []
