@@ -48,6 +48,10 @@ class Evidence:
     fingerprint: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
+    def key(self) -> tuple[Any, ...]:
+        loc = None if self.location is None else (self.location.path, self.location.start_line, self.location.start_column, self.location.end_line, self.location.end_column)
+        return (self.kind, self.source, self.fingerprint, loc, self.summary)
+
 
 @dataclass(frozen=True)
 class ToolMetadata:
@@ -90,12 +94,7 @@ class ToolRun:
     stderr: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "metadata": asdict(self.metadata),
-            "exit_code": self.exit_code,
-            "duration_ms": self.duration_ms,
-            "output_truncated": self.output_truncated,
-        }
+        return {"metadata": asdict(self.metadata), "exit_code": self.exit_code, "duration_ms": self.duration_ms, "output_truncated": self.output_truncated}
 
 
 @dataclass
@@ -115,31 +114,23 @@ class ScanReport:
             if existing is None:
                 by_fingerprint[finding.fingerprint] = finding
                 continue
-            evidence = tuple(dict.fromkeys((*existing.evidence, *finding.evidence)))
+            evidence_map = {item.key(): item for item in (*existing.evidence, *finding.evidence)}
+            evidence = tuple(evidence_map[key] for key in sorted(evidence_map, key=str))
             chosen = finding if rank[finding.severity] > rank[existing.severity] else existing
             by_fingerprint[finding.fingerprint] = Finding(
-                finding_id=chosen.finding_id, fingerprint=chosen.fingerprint, title=chosen.title,
-                description=chosen.description, category=chosen.category, severity=chosen.severity,
-                confidence=chosen.confidence, source_tool=chosen.source_tool, location=chosen.location,
-                evidence=evidence, cwe=chosen.cwe, cve=chosen.cve, references=chosen.references,
+                finding_id=chosen.finding_id, fingerprint=chosen.fingerprint, title=chosen.title, description=chosen.description,
+                category=chosen.category, severity=chosen.severity, confidence=chosen.confidence, source_tool=chosen.source_tool,
+                location=chosen.location, evidence=evidence, cwe=chosen.cwe, cve=chosen.cve, references=chosen.references,
                 fix_hint=chosen.fix_hint, verified=chosen.verified, metadata=chosen.metadata,
             )
         self.findings = sorted(by_fingerprint.values(), key=lambda f: (-rank[f.severity], f.fingerprint))
         self.limitations = sorted(set(self.limitations))
         counts = {severity.value: 0 for severity in Severity}
-        for finding in self.findings:
-            counts[finding.severity.value] += 1
+        for finding in self.findings: counts[finding.severity.value] += 1
         counts["findings"] = len(self.findings)
         counts["tool_runs"] = len(self.tool_runs)
         self.stats = counts
 
     def to_dict(self) -> dict[str, Any]:
         self.normalize()
-        return {
-            "schema_version": self.schema_version,
-            "repository_revision": self.repository_revision,
-            "findings": [finding.to_dict() for finding in self.findings],
-            "tool_runs": [run.to_dict() for run in self.tool_runs],
-            "limitations": list(self.limitations),
-            "stats": dict(self.stats),
-        }
+        return {"schema_version": self.schema_version, "repository_revision": self.repository_revision, "findings": [f.to_dict() for f in self.findings], "tool_runs": [r.to_dict() for r in self.tool_runs], "limitations": list(self.limitations), "stats": dict(self.stats)}
