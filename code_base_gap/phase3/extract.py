@@ -61,8 +61,7 @@ def _walk(tree: ParseTree):
             continue
         visited += 1
         yield node
-        children = list(getattr(node, "named_children", []))
-        for child in reversed(children):
+        for child in reversed(list(getattr(node, "named_children", []))):
             if depth + 1 <= tree.max_traversal_depth:
                 stack.append((child, depth + 1))
 
@@ -110,15 +109,20 @@ def _extract_symbols(tree: ParseTree) -> list[SymbolRecord]:
     return enriched
 
 
-def _parse_specifiers(text: str) -> tuple[str, ...]:
-    values: list[str] = []
+def _parse_specifiers(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    imported: list[str] = []
+    local_names: list[str] = []
     for item in re.split(r",", text):
         item = item.strip().strip("{}")
         if not item:
             continue
-        local = item.split(" as ", 1)[-1].strip()
-        values.append(local)
-    return tuple(values)
+        if " as " in item:
+            original, local = (part.strip() for part in item.split(" as ", 1))
+        else:
+            original = local = item
+        imported.append(original)
+        local_names.append(local)
+    return tuple(imported), tuple(local_names)
 
 
 def _extract_imports(tree: ParseTree) -> list[ImportRecord]:
@@ -126,14 +130,14 @@ def _extract_imports(tree: ParseTree) -> list[ImportRecord]:
     text = tree.source.decode("utf-8", errors="replace")
     if tree.language in JS_TS_LANGUAGES:
         for match in re.finditer(r"^\s*import\s+(.+?)\s+from\s+[\"']([^\"']+)[\"']", text, re.M):
-            imported = _parse_specifiers(match.group(1))
-            records.append(ImportRecord(match.group(2), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
+            imported, local_names = _parse_specifiers(match.group(1))
+            records.append(ImportRecord(match.group(2), imported, local_names, "static", _span_from_text(tree.source, match.start(), match.end())))
         for match in re.finditer(r"^\s*import\s+[\"']([^\"']+)[\"']", text, re.M):
             records.append(ImportRecord(match.group(1), ("*",), (), "side-effect", _span_from_text(tree.source, match.start(), match.end())))
     elif tree.language in PYTHON_LANGUAGES:
         for match in re.finditer(r"^\s*from\s+([^\s]+)\s+import\s+(.+)$", text, re.M):
-            imported = _parse_specifiers(match.group(2))
-            records.append(ImportRecord(match.group(1), imported, imported, "static", _span_from_text(tree.source, match.start(), match.end())))
+            imported, local_names = _parse_specifiers(match.group(2))
+            records.append(ImportRecord(match.group(1), imported, local_names, "static", _span_from_text(tree.source, match.start(), match.end())))
         for match in re.finditer(r"^\s*import\s+(.+)$", text, re.M):
             for item in (x.strip() for x in match.group(1).split(",")):
                 if not item:
