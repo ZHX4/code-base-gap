@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from code_base_gap.phase5.adapters import _parse_sarif_safe
 from code_base_gap.phase5.builtin import scan_code_patterns, scan_secrets
 from code_base_gap.phase5.models import Confidence, Evidence, Finding, Location, ScanReport, Severity, ToolMetadata, ToolRun
 from code_base_gap.phase5.pipeline import run_phase5
@@ -66,7 +67,13 @@ class Phase5Tests(unittest.TestCase):
                 finding = parse_sarif(json.dumps(payload), "test")[0]
                 self.assertIsNone(finding.location)
 
-    def test_deduplication_and_severity_selection(self) -> None:
+    def test_external_sarif_parse_failure_is_fail_safe(self) -> None:
+        tool = ToolRun(ToolMetadata("semgrep", "x", "v1", "ready"), 0, 1, False, '{not-json}', "")
+        result, findings = _parse_sarif_safe(tool, "semgrep")
+        self.assertEqual(findings, [])
+        self.assertIn("invalid SARIF output", result.stderr)
+
+    def test_deduplication_and_confidence_selection(self) -> None:
         location = Location("a.py", 1, 1)
         first = Finding("1", "same", "x", "x", "security", Severity.HIGH, Confidence.LOW, "a", location, (Evidence("x", "a", "x"),))
         second = Finding("2", "same", "x", "x", "security", Severity.HIGH, Confidence.HIGH, "b", location, (Evidence("y", "b", "y"),))
