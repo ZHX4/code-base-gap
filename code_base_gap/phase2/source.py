@@ -138,6 +138,10 @@ def resolve_github(
     return ResolvedSource(source, requested_ref, revision, actual_root, "github", meta)
 
 
+def _is_object_id(value: str) -> bool:
+    return bool(re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", value))
+
+
 def resolve_local(source: str) -> ResolvedSource:
     root = Path(source).expanduser().resolve()
     if not root.is_dir():
@@ -152,20 +156,22 @@ def resolve_local(source: str) -> ResolvedSource:
                 ref = head.split(":", 1)[1].strip()
                 ref_file = git_dir / ref
                 if ref_file.is_file():
-                    revision = ref_file.read_text(encoding="ascii").strip()
+                    candidate = ref_file.read_text(encoding="ascii").strip()
+                    if _is_object_id(candidate):
+                        revision = candidate
                 else:
                     packed = git_dir / "packed-refs"
                     if packed.is_file():
                         for line in packed.read_text(encoding="ascii", errors="replace").splitlines():
                             if line and not line.startswith("#") and not line.startswith("^"):
                                 try:
-                                    sha, name = line.split(" ", 1)
+                                    candidate, name = line.split(" ", 1)
                                 except ValueError:
                                     continue
-                                if name == ref:
-                                    revision = sha
+                                if name == ref and _is_object_id(candidate):
+                                    revision = candidate
                                     break
-            elif re.fullmatch(r"[0-9a-f]{40}", head):
+            elif _is_object_id(head):
                 revision = head
         except OSError:
             metadata["git_revision_read_error"] = True
