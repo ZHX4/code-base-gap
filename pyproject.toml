@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 code-base-gap = "code_base_gap.phase2.cli:main"
 code-base-gap-parse = "code_base_gap.phase3.cli:main"
+code-base-gap-graph = "code_base_gap.phase4.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
