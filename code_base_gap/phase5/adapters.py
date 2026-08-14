@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -17,6 +18,7 @@ def run_semgrep(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding
 
 def run_gitleaks(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
     fd, report_path = tempfile.mkstemp(prefix="cbg-gitleaks-", suffix=".sarif")
+    os.close(fd)
     Path(report_path).unlink(missing_ok=True)
     try:
         run = run_tool("gitleaks", ["detect", "--source", str(root), "--no-git", "--report-format", "sarif", "--report-path", report_path], root, timeout_s)
