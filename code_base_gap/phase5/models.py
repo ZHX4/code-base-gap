@@ -31,12 +31,12 @@ class Location:
     end_column: int | None = None
 
     def __post_init__(self) -> None:
-        if not self.path or self.path.startswith("/") or "\x00" in self.path:
+        normalized = self.path.replace("\\", "/")
+        if not self.path or normalized.startswith("/") or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
             raise ValueError("finding location must be a repository-relative path")
-        if self.start_line is not None and self.start_line <= 0:
-            raise ValueError("start_line must be positive")
-        if self.end_line is not None and self.end_line <= 0:
-            raise ValueError("end_line must be positive")
+        for name, value in (("start_line", self.start_line), ("start_column", self.start_column), ("end_line", self.end_line), ("end_column", self.end_column)):
+            if value is not None and value <= 0:
+                raise ValueError(f"{name} must be positive")
 
 
 @dataclass(frozen=True)
@@ -101,23 +101,24 @@ class ScanReport:
 
     def normalize(self) -> None:
         by_fingerprint: dict[str, Finding] = {}
+        rank = {Severity.CRITICAL: 5, Severity.HIGH: 4, Severity.MEDIUM: 3, Severity.LOW: 2, Severity.INFO: 1, Severity.UNKNOWN: 0}
         for finding in self.findings:
             existing = by_fingerprint.get(finding.fingerprint)
             if existing is None:
                 by_fingerprint[finding.fingerprint] = finding
                 continue
             evidence = tuple(dict.fromkeys((*existing.evidence, *finding.evidence)))
-            severity_rank = {
-                Severity.CRITICAL: 5, Severity.HIGH: 4, Severity.MEDIUM: 3,
-                Severity.LOW: 2, Severity.INFO: 1, Severity.UNKNOWN: 0,
-            }
-            chosen = finding if severity_rank[finding.severity] > severity_rank[existing.severity] else existing
+            chosen = finding if rank[finding.severity] > rank[existing.severity] else existing
             by_fingerprint[finding.fingerprint] = Finding(
-                **{**chosen.to_dict(), "evidence": evidence}
+                finding_id=chosen.finding_id, fingerprint=chosen.fingerprint, title=chosen.title,
+                description=chosen.description, category=chosen.category, severity=chosen.severity,
+                confidence=chosen.confidence, source_tool=chosen.source_tool, location=chosen.location,
+                evidence=evidence, cwe=chosen.cwe, cve=chosen.cve, references=chosen.references,
+                fix_hint=chosen.fix_hint, verified=chosen.verified, metadata=chosen.metadata,
             )
-        self.findings = sorted(by_fingerprint.values(), key=lambda f: (f.severity.value, f.fingerprint))
+        self.findings = sorted(by_fingerprint.values(), key=lambda f: (-rank[f.severity], f.fingerprint))
         self.limitations = sorted(set(self.limitations))
-        counts: dict[str, int] = {severity.value: 0 for severity in Severity}
+        counts = {severity.value: 0 for severity in Severity}
         for finding in self.findings:
             counts[finding.severity.value] += 1
         counts["findings"] = len(self.findings)
