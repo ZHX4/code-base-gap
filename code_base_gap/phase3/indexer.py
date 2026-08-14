@@ -4,13 +4,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from .extract import extract_parsed_file
-from .models import AuditManifest, ParsedFile, SemanticIndex, SemanticIndexConfig
+from .models import AuditManifest, SemanticIndex, SemanticIndexConfig
 from .parser import parse_file
 
 SUPPORTED_KINDS = {"source", "config"}
 
 
 def _resolve_entry(root: Path, relative_path: str) -> Path | None:
+    if not relative_path or Path(relative_path).is_absolute():
+        return None
     candidate = root / relative_path
     try:
         resolved = candidate.resolve()
@@ -35,6 +37,8 @@ def build_semantic_index(
 
     index = SemanticIndex(repository_revision=repository_revision)
     if manifest is not None:
+        if repository_revision is not None and manifest.repository_revision != repository_revision:
+            raise ValueError("manifest revision does not match requested repository revision")
         index.repository_revision = manifest.repository_revision
         entries = [entry for entry in manifest.files if entry.kind in SUPPORTED_KINDS]
     else:
@@ -51,17 +55,15 @@ def build_semantic_index(
         candidate = root / entry.path
         if entry.is_symlink:
             parsed = parse_file(candidate, config)
-            if parsed is None:
-                continue
         else:
             path = _resolve_entry(root, entry.path)
             if path is None:
-                index.limitations.append(f"skipped path outside repository root: {entry.path}")
+                index.limitations.append(f"skipped unsafe repository-relative path: {entry.path}")
                 continue
             parsed = parse_file(path, config)
-            if parsed is None:
-                continue
-        parsed_file: ParsedFile = extract_parsed_file(parsed, entry.path)
+        if parsed is None:
+            continue
+        parsed_file = extract_parsed_file(parsed, entry.path)
         index.files.append(parsed_file)
         index.limitations.extend(f"{entry.path}: {item}" for item in parsed_file.limitations)
 
