@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -61,6 +62,21 @@ class Phase2Tests(unittest.TestCase):
             self.assertIn("package.json test scripts", result.reconnaissance.test_frameworks)
             policy = result.manifest.repository_metadata["execution_policy"]
             self.assertTrue(all(value is False for value in policy.values()))
+
+    def test_reconnaissance_does_not_follow_symlink_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outside = root.parent / f"cgb-outside-{os.getpid()}"
+            try:
+                outside.write_text('{"dependencies":{"express":"1.0.0"}}', encoding="utf-8")
+                try:
+                    (root / "package.json").symlink_to(outside)
+                except OSError:
+                    self.skipTest("symlink creation unavailable on this platform")
+                result = run_phase2(AuditInput(str(root)))
+                self.assertNotIn("Express", result.reconnaissance.frameworks)
+            finally:
+                outside.unlink(missing_ok=True)
 
     def test_invalid_limits_fail(self) -> None:
         with self.assertRaises(ValueError):
