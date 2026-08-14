@@ -15,9 +15,10 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 - **Phase 3 — Code Parsing & Semantic Indexing:** complete.
 - **Phase 4 — Program Knowledge Graph:** complete.
 - **Phase 5 — Deterministic Analysis Layer:** complete.
-- **Phase 6+ — Implementation:** not started.
+- **Phase 6 — System Reconstruction Engine:** complete.
+- **Phase 7+ — Implementation:** not started.
 
-The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), [`docs/phase-3/`](docs/phase-3/), [`docs/phase-4/`](docs/phase-4/), and [`docs/phase-5/`](docs/phase-5/).
+The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), [`docs/phase-3/`](docs/phase-3/), [`docs/phase-4/`](docs/phase-4/), [`docs/phase-5/`](docs/phase-5/), and [`docs/phase-6/`](docs/phase-6/).
 
 ## Phase 2 usage
 
@@ -72,6 +73,19 @@ code-base-gap-scan /path/to/repository --output scan.json
 
 Phase 5 never runs project build scripts, dependency installation hooks, tests, or application servers. CodeQL database creation/build execution is intentionally deferred to the isolated execution phase.
 
+## Phase 6 usage
+
+Phase 6 reconstructs a deterministic system model from the Phase 2 reconnaissance artifact and Phase 4 program knowledge graph. Both inputs must refer to the same immutable repository revision.
+
+```bash
+code-base-gap-reconstruct \
+  --reconnaissance audit.json \
+  --graph program-graph.json \
+  --output system-model.json
+```
+
+The output uses schema `phase6.system-model.v1` and preserves observed versus inferred information explicitly.
+
 ## Validation
 
 Structural validation:
@@ -81,6 +95,7 @@ python scripts/validate_phase2.py
 python scripts/validate_phase3.py
 python scripts/validate_phase4.py
 python scripts/validate_phase5.py
+python scripts/validate_phase6.py
 ```
 
 Unit tests:
