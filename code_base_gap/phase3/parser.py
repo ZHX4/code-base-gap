@@ -103,15 +103,10 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
         parser = Parser(language)
         tree = parser.parse(source)
         nodes, truncated, limits = _build_nodes(tree.root_node, config)
-        error_count = 0
-        walk = [tree.root_node]
-        while walk:
-            node = walk.pop()
-            if node.type == "ERROR" or bool(getattr(node, "is_missing", False)):
-                error_count += 1
-            walk.extend(list(getattr(node, "named_children", [])))
+        error_nodes = sum(1 for node in nodes if node.node_type == "ERROR")
+        error_count = error_nodes
         if truncated:
-            limits = (*limits, "complete AST structure is not materialized because configured traversal limits were reached")
+            limits = (*limits, "syntax error count reflects only the bounded AST traversal")
         return ParseTree(str(path), language_name, source, digest, tree.root_node, nodes, error_count > 0, error_count, limits)
     except Exception as exc:
         return ParseTree(str(path), language_name, source, digest, None, (), False, 0, (f"parser failure: {type(exc).__name__}",))
