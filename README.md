@@ -14,9 +14,10 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 - **Phase 2 — Repository Ingestion & Reconnaissance:** complete.
 - **Phase 3 — Code Parsing & Semantic Indexing:** complete.
 - **Phase 4 — Program Knowledge Graph:** complete.
-- **Phase 5+ — Implementation:** not started.
+- **Phase 5 — Deterministic Analysis Layer:** complete.
+- **Phase 6+ — Implementation:** not started.
 
-The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), [`docs/phase-3/`](docs/phase-3/), and [`docs/phase-4/`](docs/phase-4/).
+The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), [`docs/phase-3/`](docs/phase-3/), [`docs/phase-4/`](docs/phase-4/), and [`docs/phase-5/`](docs/phase-5/).
 
 ## Phase 2 usage
 
@@ -47,8 +48,6 @@ After installation:
 code-base-gap-parse /path/to/repository --output semantic-index.json
 ```
 
-Install the project first so the Tree-sitter runtime and language pack are available.
-
 ## Phase 4 usage
 
 Phase 4 converts a Phase 3 semantic index into a deterministic program knowledge graph.
@@ -57,7 +56,21 @@ Phase 4 converts a Phase 3 semantic index into a deterministic program knowledge
 code-base-gap-graph semantic-index.json --output program-graph.json
 ```
 
-The graph models repository, file, module, symbol, endpoint, query, configuration, integration, test, and unresolved external-module entities plus deterministic relationships between them. Ambiguous relationships remain unresolved rather than being fabricated.
+## Phase 5 usage
+
+Phase 5 runs deterministic static analysis and normalizes findings. Built-in checks work without external binaries; optional adapters use Semgrep, Gitleaks, Trivy, Syft, and CodeQL discovery.
+
+```bash
+code-base-gap-scan /path/to/repository --output scan.json --no-external-tools
+```
+
+With supported external analyzers installed:
+
+```bash
+code-base-gap-scan /path/to/repository --output scan.json
+```
+
+Phase 5 never runs project build scripts, dependency installation hooks, tests, or application servers. CodeQL database creation/build execution is intentionally deferred to the isolated execution phase.
 
 ## Validation
 
@@ -67,6 +80,7 @@ Structural validation:
 python scripts/validate_phase2.py
 python scripts/validate_phase3.py
 python scripts/validate_phase4.py
+python scripts/validate_phase5.py
 ```
 
 Unit tests:
