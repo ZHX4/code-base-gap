@@ -48,17 +48,22 @@ def build_semantic_index(
         index.limitations.extend(limitations)
 
     for entry in entries:
-        path = _resolve_entry(root, entry.path)
-        if path is None:
-            index.limitations.append(f"skipped path outside repository root: {entry.path}")
-            continue
-        parsed = parse_file(path, config)
-        if parsed is None:
-            continue
-        relative = entry.path
-        parsed_file: ParsedFile = extract_parsed_file(parsed, relative)
+        candidate = root / entry.path
+        if entry.is_symlink:
+            parsed = parse_file(candidate, config)
+            if parsed is None:
+                continue
+        else:
+            path = _resolve_entry(root, entry.path)
+            if path is None:
+                index.limitations.append(f"skipped path outside repository root: {entry.path}")
+                continue
+            parsed = parse_file(path, config)
+            if parsed is None:
+                continue
+        parsed_file: ParsedFile = extract_parsed_file(parsed, entry.path)
         index.files.append(parsed_file)
-        index.limitations.extend(f"{relative}: {item}" for item in parsed_file.limitations)
+        index.limitations.extend(f"{entry.path}: {item}" for item in parsed_file.limitations)
 
     index.parser_versions["tree-sitter"] = "0.26.x"
     index.parser_versions["tree-sitter-language-pack"] = "1.13.3"
