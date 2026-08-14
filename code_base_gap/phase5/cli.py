@@ -15,10 +15,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--no-external-tools", action="store_true")
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--max-file-bytes", type=int, default=2_000_000)
+    parser.add_argument("--max-files", type=int, default=100_000)
     args = parser.parse_args(argv)
-    if args.timeout <= 0:
-        parser.error("--timeout must be positive")
-    report = run_phase5(args.workspace, args.revision, enable_external_tools=not args.no_external_tools, timeout_s=args.timeout)
+    if args.timeout <= 0 or args.max_file_bytes <= 0 or args.max_files <= 0:
+        parser.error("--timeout, --max-file-bytes, and --max-files must be positive")
+    report = run_phase5(
+        args.workspace,
+        args.revision,
+        enable_external_tools=not args.no_external_tools,
+        timeout_s=args.timeout,
+        max_file_bytes=args.max_file_bytes,
+        max_files=args.max_files,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
     return 0
