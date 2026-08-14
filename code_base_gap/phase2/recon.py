@@ -6,12 +6,14 @@ from collections import Counter
 from pathlib import Path
 from typing import Iterable
 
-from .filesystem import CONFIG_NAMES, file_sha256
+from .filesystem import file_sha256
 from .models import AuditManifest, FileEntry, ReconnaissanceReport
 
 
 def _read_text(path: Path, limit: int = 512_000) -> str:
     try:
+        if path.is_symlink() or not path.is_file():
+            return ""
         with path.open("rb") as handle:
             data = handle.read(limit + 1)
         if len(data) > limit:
@@ -29,20 +31,22 @@ def _json(path: Path) -> dict:
         return {}
 
 
+def _regular_file(root: Path, name: str) -> Path | None:
+    candidate = root / name
+    if candidate.is_symlink() or not candidate.is_file():
+        return None
+    return candidate
+
+
 def _add_once(items: list[str], *values: str) -> None:
     for value in values:
         if value and value not in items:
             items.append(value)
 
 
-def _relative_parent(path: str) -> str:
-    parent = Path(path).parent.as_posix()
-    return "." if parent == "." else parent
-
-
 def _detect_frameworks(root: Path, files: list[FileEntry], report: ReconnaissanceReport) -> None:
-    package = root / "package.json"
-    if package.is_file():
+    package = _regular_file(root, "package.json")
+    if package is not None:
         data = _json(package)
         deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
         framework_map = {
@@ -53,19 +57,20 @@ def _detect_frameworks(root: Path, files: list[FileEntry], report: Reconnaissanc
         for package_name, framework in framework_map.items():
             if package_name in deps:
                 _add_once(report.frameworks, framework)
-        _add_once(report.package_managers, "npm" if (root / "package-lock.json").is_file() else "")
-        _add_once(report.package_managers, "pnpm" if (root / "pnpm-lock.yaml").is_file() else "")
-        _add_once(report.package_managers, "yarn" if (root / "yarn.lock").is_file() else "")
-        if data.get("scripts"):
+        _add_once(report.package_managers, "npm" if _regular_file(root, "package-lock.json") else "")
+        _add_once(report.package_managers, "pnpm" if _regular_file(root, "pnpm-lock.yaml") else "")
+        _add_once(report.package_managers, "yarn" if _regular_file(root, "yarn.lock") else "")
+        scripts = data.get("scripts")
+        if isinstance(scripts, dict) and scripts:
             _add_once(report.build_systems, "package.json scripts")
-            for script_name in data["scripts"]:
+            for script_name in scripts:
                 if script_name in {"build", "compile"}:
                     _add_once(report.build_systems, "JavaScript build scripts")
                 if script_name in {"test", "test:unit", "test:e2e"}:
                     _add_once(report.test_frameworks, "package.json test scripts")
 
-    pyproject = root / "pyproject.toml"
-    if pyproject.is_file():
+    pyproject = _regular_file(root, "pyproject.toml")
+    if pyproject is not None:
         text = _read_text(pyproject).lower()
         _add_once(report.package_managers, "Python packaging (pyproject.toml)")
         for marker, framework in {
@@ -77,53 +82,58 @@ def _detect_frameworks(root: Path, files: list[FileEntry], report: Reconnaissanc
         if "pytest" in text:
             _add_once(report.test_frameworks, "pytest")
 
-    if (root / "requirements.txt").is_file():
+    requirements = _regular_file(root, "requirements.txt")
+    if requirements is not None:
         _add_once(report.package_managers, "pip/requirements.txt")
-        text = _read_text(root / "requirements.txt").lower()
-        for marker, framework in {"django": "Django", "fastapi": "FastAPI", "flask": "Flask", "pytest": "pytest"}.items():
+        text = _read_text(requirements).lower()
+        for marker, framework in {"django": "Django", "fastapi": "FastAPI", "flask": "Flask"}.items():
             if marker in text:
-                _add_once(report.frameworks if marker != "pytest" else report.test_frameworks, framework)
+                _add_once(report.frameworks, framework)
+        if "pytest" in text:
+            _add_once(report.test_frameworks, "pytest")
+
     for filename, system in {
         "poetry.lock": "Poetry", "Pipfile.lock": "Pipenv", "uv.lock": "uv", "Cargo.lock": "Cargo", "go.sum": "Go modules",
     }.items():
-        if (root / filename).is_file():
+        if _regular_file(root, filename) is not None:
             _add_once(report.package_managers, system)
 
-    if (root / "Cargo.toml").is_file():
+    if _regular_file(root, "Cargo.toml") is not None:
         _add_once(report.package_managers, "Cargo")
         _add_once(report.build_systems, "Cargo")
-    if (root / "go.mod").is_file():
+    if _regular_file(root, "go.mod") is not None:
         _add_once(report.package_managers, "Go modules")
         _add_once(report.build_systems, "Go")
-    if (root / "pom.xml").is_file():
+    if _regular_file(root, "pom.xml") is not None:
         _add_once(report.package_managers, "Maven")
         _add_once(report.build_systems, "Maven")
-    if (root / "build.gradle").is_file() or (root / "build.gradle.kts").is_file():
+    if _regular_file(root, "build.gradle") is not None or _regular_file(root, "build.gradle.kts") is not None:
         _add_once(report.package_managers, "Gradle")
         _add_once(report.build_systems, "Gradle")
 
 
 def _detect_tooling(root: Path, report: ReconnaissanceReport) -> None:
     workflows = root / ".github" / "workflows"
-    if workflows.is_dir():
+    if workflows.is_dir() and not workflows.is_symlink():
         _add_once(report.cicd, "GitHub Actions")
     for path, name in [
         (root / ".gitlab-ci.yml", "GitLab CI"), (root / "azure-pipelines.yml", "Azure Pipelines"),
         (root / "Jenkinsfile", "Jenkins"), (root / ".circleci", "CircleCI"),
     ]:
-        if path.exists():
+        if not path.is_symlink() and path.exists():
             _add_once(report.cicd, name)
     deploy_markers = {
         "vercel.json": "Vercel", "netlify.toml": "Netlify", "fly.toml": "Fly.io", "render.yaml": "Render",
         "Procfile": "Heroku/Procfile", "railway.json": "Railway", "railway.toml": "Railway",
     }
     for filename, target in deploy_markers.items():
-        if (root / filename).exists():
+        if _regular_file(root, filename) is not None:
             _add_once(report.deployment, target)
-    if (root / "docker-compose.yml").is_file() or (root / "docker-compose.yaml").is_file() or (root / "compose.yml").is_file() or (root / "compose.yaml").is_file():
+    compose = any(_regular_file(root, filename) is not None for filename in ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"))
+    if compose:
         _add_once(report.deployment, "Docker Compose")
         _add_once(report.build_systems, "Docker Compose")
-    if (root / "Dockerfile").is_file() or (root / "Containerfile").is_file():
+    if _regular_file(root, "Dockerfile") is not None or _regular_file(root, "Containerfile") is not None:
         _add_once(report.deployment, "Docker")
         _add_once(report.build_systems, "Docker")
 
