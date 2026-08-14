@@ -1,0 +1,32 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://code-base-gap.dev/schema/phase6-system-model.schema.json",
+  "title":"Code Base Gap Phase 6 System Model",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","repository_revision","components","entry_points","data_stores","external_dependencies","trust_boundaries","critical_paths","signals","limitations","stats"],
+  "properties":{
+    "schema_version":{"const":"phase6.system-model.v1"},
+    "repository_revision":{"type":["string","null"]},
+    "components":{"type":"array","items":{"$ref":"#/$defs/component"}},
+    "entry_points":{"type":"array","items":{"$ref":"#/$defs/entryPoint"}},
+    "data_stores":{"type":"array","items":{"$ref":"#/$defs/dataStore"}},
+    "external_dependencies":{"type":"array","items":{"$ref":"#/$defs/dependency"}},
+    "trust_boundaries":{"type":"array","items":{"$ref":"#/$defs/boundary"}},
+    "critical_paths":{"type":"array","items":{"$ref":"#/$defs/criticalPath"}},
+    "signals":{"type":"array","items":{"$ref":"#/$defs/signal"}},
+    "limitations":{"type":"array","items":{"type":"string"}},
+    "stats":{"type":"object","additionalProperties":{"type":"integer","minimum":0}}
+  },
+  "$defs":{
+    "provenance":{"enum":["observed","inferred","unknown"]},
+    "evidence":{"type":"object","additionalProperties":false,"required":["source","subject","detail","provenance"],"properties":{"source":{"type":"string"},"subject":{"type":"string"},"detail":{"type":"string"},"provenance":{"$ref":"#/$defs/provenance"}}},
+    "component":{"type":"object","additionalProperties":false,"required":["component_id","name","kind","root_paths","languages","frameworks","provenance","evidence"],"properties":{"component_id":{"type":"string"},"name":{"type":"string"},"kind":{"enum":["application","service","package","library","infrastructure","unknown"]},"root_paths":{"type":"array","items":{"type":"string"}},"languages":{"type":"array","items":{"type":"string"}},"frameworks":{"type":"array","items":{"type":"string"}},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "entryPoint":{"type":"object","additionalProperties":false,"required":["entry_point_id","kind","path","method","file_path","symbol_id","component_id","provenance","evidence"],"properties":{"entry_point_id":{"type":"string"},"kind":{"type":"string"},"path":{"type":["string","null"]},"method":{"type":["string","null"]},"file_path":{"type":["string","null"]},"symbol_id":{"type":["string","null"]},"component_id":{"type":["string","null"]},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "dataStore":{"type":"object","additionalProperties":false,"required":["data_store_id","kind","name","file_paths","operations","component_ids","provenance","evidence"],"properties":{"data_store_id":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"file_paths":{"type":"array","items":{"type":"string"}},"operations":{"type":"array","items":{"type":"string"}},"component_ids":{"type":"array","items":{"type":"string"}},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "dependency":{"type":"object","additionalProperties":false,"required":["dependency_id","name","kind","consuming_components","provenance","evidence"],"properties":{"dependency_id":{"type":"string"},"name":{"type":"string"},"kind":{"type":"string"},"consuming_components":{"type":"array","items":{"type":"string"}},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "boundary":{"type":"object","additionalProperties":false,"required":["boundary_id","kind","name","component_ids","entry_point_ids","provenance","evidence"],"properties":{"boundary_id":{"type":"string"},"kind":{"enum":["internet","internal","database","external-service","message","unknown"]},"name":{"type":"string"},"component_ids":{"type":"array","items":{"type":"string"}},"entry_point_ids":{"type":"array","items":{"type":"string"}},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "criticalPath":{"type":"object","additionalProperties":false,"required":["path_id","entry_point_id","steps","reason","provenance","evidence"],"properties":{"path_id":{"type":"string"},"entry_point_id":{"type":"string"},"steps":{"type":"array","items":{"type":"string"}},"reason":{"type":"string"},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}},
+    "signal":{"type":"object","additionalProperties":false,"required":["signal_id","category","value","provenance","evidence"],"properties":{"signal_id":{"type":"string"},"category":{"type":"string"},"value":{"type":"string"},"provenance":{"$ref":"#/$defs/provenance"},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}}}}
+  }
+}
