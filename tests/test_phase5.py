@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 
 from code_base_gap.phase5.builtin import scan_code_patterns, scan_secrets
-from code_base_gap.phase5.models import Evidence, Finding, Location, ScanReport, Severity, Confidence
+from code_base_gap.phase5.models import Confidence, Evidence, Finding, Location, ScanReport, Severity, ToolMetadata, ToolRun
 from code_base_gap.phase5.pipeline import run_phase5
-from code_base_gap.phase5.runner import run_tool, tool_path
+from code_base_gap.phase5.runner import run_tool
 from code_base_gap.phase5.sarif import parse_sarif
 
 
@@ -25,15 +25,21 @@ class Phase5Tests(unittest.TestCase):
             patterns = scan_code_patterns(root)
             self.assertEqual(len(secrets), 1)
             self.assertTrue(any(f.severity == Severity.HIGH for f in secrets))
-            self.assertTrue(any("eval" in f.title for f in patterns))
+            self.assertEqual(sum("Dynamic code evaluation" in f.title for f in patterns), 1)
+
+    def test_excluded_dependency_directory_is_not_scanned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            dep = root / "node_modules" / "pkg"
+            dep.mkdir(parents=True)
+            (dep / "bad.py").write_text("eval(input())\n", encoding="utf-8")
+            self.assertEqual(scan_code_patterns(root), [])
 
     def test_sarif_normalization(self) -> None:
         payload = {
             "version": "2.1.0",
-            "runs": [{
-                "tool": {"driver": {"name": "test", "rules": [{"id": "R1", "name": "Test Rule", "helpUri": "https://example.test/r1"}]}},
-                "results": [{"ruleId": "R1", "level": "error", "message": {"text": "Bad thing"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": "src/app.py"}, "region": {"startLine": 4, "startColumn": 2}}}]}],
-            }],
+            "runs": [{"tool": {"driver": {"name": "test", "rules": [{"id": "R1", "name": "Test Rule", "helpUri": "https://example.test/r1"}]}},
+                "results": [{"ruleId": "R1", "level": "error", "message": {"text": "Bad thing"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": "src/app.py"}, "region": {"startLine": 4, "startColumn": 2}}}]}]}],
         }
         findings = parse_sarif(json.dumps(payload), "test")
         self.assertEqual(len(findings), 1)
@@ -65,8 +71,13 @@ class Phase5Tests(unittest.TestCase):
             payload = report.to_dict()
             self.assertEqual(payload["schema_version"], "phase5.deterministic-scan.v1")
 
-    def test_missing_tool_does_not_claim_analysis(self) -> None:
-        self.assertIsNone(tool_path("semgrep") if False else None)
+    def test_report_redacts_tool_output(self) -> None:
+        run = ToolRun(ToolMetadata("semgrep", "x", "v1", "ready"), 0, 1, False, "SECRET_OUTPUT", "SECRET_ERROR")
+        report = ScanReport(tool_runs=[run])
+        payload = report.to_dict()
+        encoded = json.dumps(payload)
+        self.assertNotIn("SECRET_OUTPUT", encoded)
+        self.assertNotIn("SECRET_ERROR", encoded)
 
 
 if __name__ == "__main__":
