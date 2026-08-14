@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
 from .models import Finding, ToolRun
 from .runner import run_tool
 from .sarif import parse_sarif
-
-
-def _unavailable(run: ToolRun) -> list[Finding]:
-    return []
 
 
 def run_semgrep(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
@@ -19,8 +16,14 @@ def run_semgrep(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding
 
 
 def run_gitleaks(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
-    run = run_tool("gitleaks", ["detect", "--source", str(root), "--no-git", "--report-format", "sarif", "--report-path", "-"], root, timeout_s)
-    return run, parse_sarif(run.stdout, "gitleaks") if run.stdout.lstrip().startswith("{") else []
+    fd, report_path = tempfile.mkstemp(prefix="cbg-gitleaks-", suffix=".sarif")
+    Path(report_path).unlink(missing_ok=True)
+    try:
+        run = run_tool("gitleaks", ["detect", "--source", str(root), "--no-git", "--report-format", "sarif", "--report-path", report_path], root, timeout_s)
+        report_text = Path(report_path).read_text(encoding="utf-8", errors="replace") if Path(report_path).is_file() else ""
+        return run, parse_sarif(report_text, "gitleaks") if report_text.lstrip().startswith("{") else []
+    finally:
+        Path(report_path).unlink(missing_ok=True)
 
 
 def run_trivy(root: Path, timeout_s: int = 300) -> tuple[ToolRun, list[Finding]]:
@@ -40,9 +43,8 @@ def run_syft(root: Path, timeout_s: int = 180) -> tuple[ToolRun, dict]:
 
 def run_codeql(root: Path, languages: list[str] | None = None, timeout_s: int = 600) -> tuple[ToolRun, list[Finding]]:
     # Database creation/build execution is deliberately not performed in Phase 5.
-    # Phase 18 provides the isolated execution environment required for build-based CodeQL extraction.
     metadata = run_tool("codeql", ["version"], root, 10)
     if metadata.metadata.status == "unavailable":
         return metadata, []
-    metadata = ToolRun(metadata.metadata, 0, metadata.duration_ms, False, "", "Phase 5 CodeQL adapter is discovery-only; build/database creation deferred to Phase 18")
+    metadata = ToolRun(metadata.metadata, 0, metadata.duration_ms, False, metadata.stdout, "Phase 5 CodeQL adapter is discovery-only; build/database creation is deferred to the sandbox phase")
     return metadata, []
