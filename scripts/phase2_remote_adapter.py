@@ -1,12 +1,9 @@
-"""Phase 2 remote adapter boundary.
-
-The implementation keeps network acquisition behind one interface so later
-production workers can enforce centralized egress policy without changing
-reconnaissance logic.
-"""
+"""Compatibility wrapper for the Phase 2 GitHub source adapter."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from code_base_gap.phase2.source import SourceError, parse_github_source
 
 
 @dataclass(frozen=True)
@@ -20,6 +17,8 @@ class RemoteRepositoryError(RuntimeError):
     pass
 
 
-def validate_source(source: str) -> None:
-    if not source.startswith("https://github.com/"):
-        raise RemoteRepositoryError("Phase 2 currently accepts public HTTPS GitHub sources only")
+def validate_source(source: str) -> tuple[str, str]:
+    try:
+        return parse_github_source(source)
+    except SourceError as exc:
+        raise RemoteRepositoryError(str(exc)) from exc
