@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 
 from code_base_gap.phase3.models import (
     EndpointRecord, ImportRecord, ParsedFile, Position, ReferenceRecord, SemanticIndex, Span, SymbolRecord,
@@ -23,7 +21,7 @@ class Phase4Tests(unittest.TestCase):
         main = ParsedFile(
             path="app/main.py", language="python", source_sha256="a" * 64, byte_length=100,
             root_type="module", has_errors=False, error_count=0, ast_nodes=(),
-            symbols=(user_symbol,), imports=(ImportRecord("app.helpers", ("helper",), ("helper",), "static", span(0, 15)),),
+            symbols=(user_symbol,), imports=(ImportRecord(".helpers", ("helper",), ("helper",), "static", span(0, 15)),),
             exports=(user_symbol,), references=(ReferenceRecord("helper", "identifier", span(35, 41), "user_fn", None),),
             endpoints=(EndpointRecord("fastapi", "GET", "/users/{id}", span(15, 20), None),),
             queries=(), configs=(), integrations=(), tests=(), limitations=(),
