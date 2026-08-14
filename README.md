@@ -13,9 +13,10 @@ The long-term target is a production-grade **Autonomous Unified Repository Audit
 - **Phase 1 — Product Definition & Technical Specification:** complete.
 - **Phase 2 — Repository Ingestion & Reconnaissance:** complete.
 - **Phase 3 — Code Parsing & Semantic Indexing:** complete.
-- **Phase 4+ — Implementation:** not started.
+- **Phase 4 — Program Knowledge Graph:** complete.
+- **Phase 5+ — Implementation:** not started.
 
-The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), and [`docs/phase-3/`](docs/phase-3/).
+The authoritative specifications live under [`docs/phase-1/`](docs/phase-1/), [`docs/phase-2/`](docs/phase-2/), [`docs/phase-3/`](docs/phase-3/), and [`docs/phase-4/`](docs/phase-4/).
 
 ## Phase 2 usage
 
@@ -48,6 +49,16 @@ code-base-gap-parse /path/to/repository --output semantic-index.json
 
 Install the project first so the Tree-sitter runtime and language pack are available.
 
+## Phase 4 usage
+
+Phase 4 converts a Phase 3 semantic index into a deterministic program knowledge graph.
+
+```bash
+code-base-gap-graph semantic-index.json --output program-graph.json
+```
+
+The graph models repository, file, module, symbol, endpoint, query, configuration, integration, test, and unresolved external-module entities plus deterministic relationships between them. Ambiguous relationships remain unresolved rather than being fabricated.
+
 ## Validation
 
 Structural validation:
@@ -55,6 +66,7 @@ Structural validation:
 ```bash
 python scripts/validate_phase2.py
 python scripts/validate_phase3.py
+python scripts/validate_phase4.py
 ```
 
 Unit tests:
