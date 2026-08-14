@@ -1,0 +1,21 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://code-base-gap.dev/schema/phase5-deterministic-scan.schema.json",
+  "title":"Code Base Gap Phase 5 Deterministic Scan",
+  "type":"object","additionalProperties":false,
+  "required":["schema_version","repository_revision","findings","tool_runs","limitations","stats"],
+  "properties":{
+    "schema_version":{"const":"phase5.deterministic-scan.v1"},
+    "repository_revision":{"type":["string","null"]},
+    "findings":{"type":"array","items":{"$ref":"#/$defs/finding"}},
+    "tool_runs":{"type":"array","items":{"$ref":"#/$defs/toolRun"}},
+    "limitations":{"type":"array","items":{"type":"string"}},
+    "stats":{"type":"object","additionalProperties":{"type":"integer","minimum":0}}
+  },
+  "$defs":{
+    "location":{"type":"object","additionalProperties":false,"required":["path","start_line","start_column","end_line","end_column"],"properties":{"path":{"type":"string","minLength":1},"start_line":{"type":["integer","null"],"minimum":1},"start_column":{"type":["integer","null"],"minimum":1},"end_line":{"type":["integer","null"],"minimum":1},"end_column":{"type":["integer","null"],"minimum":1}}},
+    "evidence":{"type":"object","additionalProperties":false,"required":["kind","source","summary","location","fingerprint","raw"],"properties":{"kind":{"type":"string"},"source":{"type":"string"},"summary":{"type":"string"},"location":{"anyOf":[{"$ref":"#/$defs/location"},{"type":"null"}]},"fingerprint":{"type":["string","null"]},"raw":{"type":"object"}}},
+    "finding":{"type":"object","additionalProperties":false,"required":["finding_id","fingerprint","title","description","category","severity","confidence","source_tool","location","evidence","cwe","cve","references","fix_hint","verified","metadata"],"properties":{"finding_id":{"type":"string"},"fingerprint":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"category":{"type":"string"},"severity":{"enum":["critical","high","medium","low","info","unknown"]},"confidence":{"enum":["high","medium","low","unknown"]},"source_tool":{"type":"string"},"location":{"anyOf":[{"$ref":"#/$defs/location"},{"type":"null"}]},"evidence":{"type":"array","items":{"$ref":"#/$defs/evidence"}},"cwe":{"type":"array","items":{"type":"string"}},"cve":{"type":"array","items":{"type":"string"}},"references":{"type":"array","items":{"type":"string"}},"fix_hint":{"type":["string","null"]},"verified":{"type":"boolean"},"metadata":{"type":"object"}}},
+    "toolRun":{"type":"object","additionalProperties":false,"required":["metadata","exit_code","duration_ms","output_truncated","stdout","stderr"],"properties":{"metadata":{"type":"object","additionalProperties":false,"required":["name","version","adapter_version","status"],"properties":{"name":{"type":"string"},"version":{"type":["string","null"]},"adapter_version":{"type":"string"},"status":{"type":"string"}}},"exit_code":{"type":["integer","null"]},"duration_ms":{"type":"integer","minimum":0},"output_truncated":{"type":"boolean"},"stdout":{"type":"string"},"stderr":{"type":"string"}}}
+  }
+}
