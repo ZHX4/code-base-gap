@@ -33,9 +33,9 @@ class Location:
     def __post_init__(self) -> None:
         normalized = self.path.replace("\\", "/")
         first = normalized.split("/", 1)[0]
-        absolute_drive = len(first) == 2 and first[1] == ":" and first[0].isalpha()
+        drive_prefix = len(first) >= 2 and first[1] == ":" and first[0].isalpha()
         uri_scheme = normalized.lower().startswith(("file:", "http:", "https:")) or "://" in normalized
-        if not self.path or normalized.startswith("/") or normalized.startswith("\\") or absolute_drive or uri_scheme or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
+        if not self.path or normalized.startswith("/") or normalized.startswith("\\") or drive_prefix or uri_scheme or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
             raise ValueError("finding location must be a repository-relative path")
         for name, value in (("start_line", self.start_line), ("start_column", self.start_column), ("end_line", self.end_line), ("end_column", self.end_column)):
             if value is not None and value <= 0:
@@ -112,7 +112,8 @@ class ScanReport:
 
     def normalize(self) -> None:
         by_fingerprint: dict[str, Finding] = {}
-        rank = {Severity.CRITICAL: 5, Severity.HIGH: 4, Severity.MEDIUM: 3, Severity.LOW: 2, Severity.INFO: 1, Severity.UNKNOWN: 0}
+        severity_rank = {Severity.CRITICAL: 5, Severity.HIGH: 4, Severity.MEDIUM: 3, Severity.LOW: 2, Severity.INFO: 1, Severity.UNKNOWN: 0}
+        confidence_rank = {Confidence.HIGH: 3, Confidence.MEDIUM: 2, Confidence.LOW: 1, Confidence.UNKNOWN: 0}
         for finding in self.findings:
             existing = by_fingerprint.get(finding.fingerprint)
             if existing is None:
@@ -120,14 +121,16 @@ class ScanReport:
                 continue
             evidence_map = {item.key(): item for item in (*existing.evidence, *finding.evidence)}
             evidence = tuple(evidence_map[key] for key in sorted(evidence_map, key=str))
-            chosen = finding if rank[finding.severity] > rank[existing.severity] else existing
+            current_score = (severity_rank[finding.severity], confidence_rank[finding.confidence])
+            existing_score = (severity_rank[existing.severity], confidence_rank[existing.confidence])
+            chosen = finding if current_score > existing_score else existing
             by_fingerprint[finding.fingerprint] = Finding(
                 finding_id=chosen.finding_id, fingerprint=chosen.fingerprint, title=chosen.title, description=chosen.description,
                 category=chosen.category, severity=chosen.severity, confidence=chosen.confidence, source_tool=chosen.source_tool,
                 location=chosen.location, evidence=evidence, cwe=chosen.cwe, cve=chosen.cve, references=chosen.references,
                 fix_hint=chosen.fix_hint, verified=chosen.verified, metadata=chosen.metadata,
             )
-        self.findings = sorted(by_fingerprint.values(), key=lambda f: (-rank[f.severity], f.fingerprint))
+        self.findings = sorted(by_fingerprint.values(), key=lambda f: (-severity_rank[f.severity], -confidence_rank[f.confidence], f.fingerprint))
         self.limitations = sorted(set(self.limitations))
         counts = {severity.value: 0 for severity in Severity}
         for finding in self.findings:
