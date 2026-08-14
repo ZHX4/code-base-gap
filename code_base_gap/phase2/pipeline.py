@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import tempfile
 from pathlib import Path
 
 from .filesystem import inventory
 from .models import AuditInput, AuditManifest, Phase2Result
 from .recon import reconnaissance
-from .source import ResolvedSource, SourceError, resolve_source
+from .source import ResolvedSource, resolve_source
 
 
 def _config_hash(config: AuditInput) -> str:
@@ -47,10 +46,16 @@ def _workspace_metadata(resolved: ResolvedSource, config: AuditInput) -> dict[st
 
 
 def run_phase2(config: AuditInput) -> Phase2Result:
-    if config.max_files <= 0 or config.max_file_bytes <= 0 or config.max_total_bytes <= 0 or config.max_archive_bytes <= 0:
+    if any(value <= 0 for value in (config.max_files, config.max_file_bytes, config.max_total_bytes, config.max_archive_bytes)):
         raise ValueError("all Phase 2 limits must be positive")
 
-    resolved, holder = resolve_source(config.source, config.ref, config.max_archive_bytes)
+    resolved, holder = resolve_source(
+        config.source,
+        config.ref,
+        config.max_archive_bytes,
+        config.max_files,
+        config.max_total_bytes,
+    )
     try:
         files, exclusions, limitations = inventory(
             resolved.workspace,
