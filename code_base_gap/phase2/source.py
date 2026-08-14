@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import stat
 import tempfile
 import urllib.parse
 import urllib.request
@@ -56,7 +57,19 @@ def parse_github_source(source: str) -> tuple[str, str]:
     return owner, repo
 
 
-def resolve_github(source: str, requested_ref: str | None, destination: Path, max_archive_bytes: int) -> ResolvedSource:
+def _is_symlink_member(member: zipfile.ZipInfo) -> bool:
+    mode = (member.external_attr >> 16) & 0o170000
+    return mode == stat.S_IFLNK
+
+
+def resolve_github(
+    source: str,
+    requested_ref: str | None,
+    destination: Path,
+    max_archive_bytes: int,
+    max_files: int,
+    max_unpacked_bytes: int,
+) -> ResolvedSource:
     owner, repo = parse_github_source(source)
     meta = _request_json(f"https://api.github.com/repos/{owner}/{repo}")
     default_branch = str(meta.get("default_branch") or "main")
@@ -93,11 +106,19 @@ def resolve_github(source: str, requested_ref: str | None, destination: Path, ma
     try:
         with zipfile.ZipFile(archive) as zf:
             members = zf.infolist()
+            if len(members) > max_files:
+                raise SourceError(f"archive contains too many entries: {len(members)} > {max_files}")
+            total_unpacked = 0
             for member in members:
                 name = member.filename.replace("\\", "/")
                 parts = Path(name).parts
                 if not name or name.startswith("/") or ":" in name.split("/")[0] or ".." in parts:
                     raise SourceError(f"unsafe archive member: {member.filename}")
+                if _is_symlink_member(member):
+                    raise SourceError(f"archive contains unsupported symlink member: {member.filename}")
+                total_unpacked += int(member.file_size)
+                if total_unpacked > max_unpacked_bytes:
+                    raise SourceError(f"archive expands beyond configured limit: {max_unpacked_bytes} bytes")
                 target = (workspace / name).resolve()
                 if workspace.resolve() not in target.parents and target != workspace.resolve():
                     raise SourceError(f"archive member escapes workspace: {member.filename}")
@@ -151,11 +172,19 @@ def resolve_local(source: str) -> ResolvedSource:
     return ResolvedSource(source, None, revision, root, "local", metadata)
 
 
-def resolve_source(source: str, requested_ref: str | None, max_archive_bytes: int) -> tuple[ResolvedSource, tempfile.TemporaryDirectory[str] | None]:
+def resolve_source(
+    source: str,
+    requested_ref: str | None,
+    max_archive_bytes: int,
+    max_files: int,
+    max_unpacked_bytes: int,
+) -> tuple[ResolvedSource, tempfile.TemporaryDirectory[str] | None]:
     if source.startswith("https://github.com/"):
         holder = tempfile.TemporaryDirectory(prefix="code-base-gap-phase2-")
         try:
-            resolved = resolve_github(source, requested_ref, Path(holder.name), max_archive_bytes)
+            resolved = resolve_github(
+                source, requested_ref, Path(holder.name), max_archive_bytes, max_files, max_unpacked_bytes
+            )
         except Exception:
             holder.cleanup()
             raise
