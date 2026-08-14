@@ -89,6 +89,14 @@ class ToolRun:
     stdout: str = ""
     stderr: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "metadata": asdict(self.metadata),
+            "exit_code": self.exit_code,
+            "duration_ms": self.duration_ms,
+            "output_truncated": self.output_truncated,
+        }
+
 
 @dataclass
 class ScanReport:
@@ -127,4 +135,11 @@ class ScanReport:
 
     def to_dict(self) -> dict[str, Any]:
         self.normalize()
-        return asdict(self)
+        return {
+            "schema_version": self.schema_version,
+            "repository_revision": self.repository_revision,
+            "findings": [finding.to_dict() for finding in self.findings],
+            "tool_runs": [run.to_dict() for run in self.tool_runs],
+            "limitations": list(self.limitations),
+            "stats": dict(self.stats),
+        }
