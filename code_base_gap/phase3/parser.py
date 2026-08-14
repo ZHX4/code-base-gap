@@ -38,8 +38,7 @@ def detect_language(path: Path) -> str | None:
 
 def _span(node: object) -> Span:
     return Span(
-        start_byte=int(node.start_byte),
-        end_byte=int(node.end_byte),
+        start_byte=int(node.start_byte), end_byte=int(node.end_byte),
         start=Position(int(node.start_point[0]) + 1, int(node.start_point[1]) + 1),
         end=Position(int(node.end_point[0]) + 1, int(node.end_point[1]) + 1),
     )
@@ -62,17 +61,10 @@ def _build_nodes(root: object, config: SemanticIndexConfig) -> tuple[tuple[AstNo
         node_id = next_id
         next_id += 1
         children = list(node.named_children if hasattr(node, "named_children") else [])
-        records.append(
-            AstNodeRecord(
-                node_id=node_id,
-                parent_id=parent_id,
-                node_type=str(node.type),
-                named=bool(getattr(node, "is_named", True)),
-                span=_span(node),
-                child_ids=(),
-                field_name=field_name,
-            )
-        )
+        records.append(AstNodeRecord(
+            node_id=node_id, parent_id=parent_id, node_type=str(node.type),
+            named=bool(getattr(node, "is_named", True)), span=_span(node), child_ids=(), field_name=field_name,
+        ))
         for index in range(len(children) - 1, -1, -1):
             child = children[index]
             child_field = node.field_name_for_child(index) if hasattr(node, "field_name_for_child") else None
@@ -85,13 +77,8 @@ def _build_nodes(root: object, config: SemanticIndexConfig) -> tuple[tuple[AstNo
             children_by_parent.setdefault(record.parent_id, []).append(record.node_id)
     rebuilt = tuple(
         AstNodeRecord(
-            node_id=r.node_id,
-            parent_id=r.parent_id,
-            node_type=r.node_type,
-            named=r.named,
-            span=r.span,
-            child_ids=tuple(children_by_parent.get(r.node_id, [])),
-            field_name=r.field_name,
+            node_id=r.node_id, parent_id=r.parent_id, node_type=r.node_type, named=r.named,
+            span=r.span, child_ids=tuple(children_by_parent.get(r.node_id, [])), field_name=r.field_name,
         )
         for r in records
     )
@@ -102,16 +89,15 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
     language_name = detect_language(path)
     if language_name is None:
         return None
+    if path.is_symlink():
+        return ParseTree(str(path), language_name, b"", "", None, (), False, 0, ("symlink source is not followed",))
     try:
         source = path.read_bytes()
     except OSError as exc:
         return ParseTree(str(path), language_name, b"", "", None, (), False, 0, (f"unreadable source: {type(exc).__name__}",))
     digest = hashlib.sha256(source).hexdigest()
     if len(source) > config.max_source_text_bytes or len(source) > config.max_file_bytes:
-        return ParseTree(
-            str(path), language_name, b"", digest, None, (), False, 0,
-            ("source exceeds configured parsing byte limit",),
-        )
+        return ParseTree(str(path), language_name, b"", digest, None, (), False, 0, ("source exceeds configured parsing byte limit",))
     try:
         language = get_language(language_name)
         parser = Parser(language)
@@ -126,12 +112,6 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
             walk.extend(list(getattr(node, "named_children", [])))
         if truncated:
             limits = (*limits, "complete AST structure is not materialized because configured traversal limits were reached")
-        return ParseTree(
-            str(path), language_name, source, digest, tree.root_node,
-            nodes, error_count > 0, error_count, limits,
-        )
+        return ParseTree(str(path), language_name, source, digest, tree.root_node, nodes, error_count > 0, error_count, limits)
     except Exception as exc:
-        return ParseTree(
-            str(path), language_name, source, digest, None, (), False, 0,
-            (f"parser failure: {type(exc).__name__}",),
-        )
+        return ParseTree(str(path), language_name, source, digest, None, (), False, 0, (f"parser failure: {type(exc).__name__}",))
