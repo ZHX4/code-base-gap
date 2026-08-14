@@ -6,14 +6,7 @@ from typing import Any
 
 
 SUPPORTED_LANGUAGES = (
-    "javascript",
-    "typescript",
-    "tsx",
-    "python",
-    "sql",
-    "json",
-    "yaml",
-    "dockerfile",
+    "javascript", "typescript", "tsx", "python", "sql", "json", "yaml", "dockerfile",
 )
 
 
@@ -58,6 +51,7 @@ class SymbolRecord:
     name: str
     kind: str
     span: Span
+    name_span: Span
     parent_symbol_id: str | None = None
     exported: bool = False
     signature: str | None = None
