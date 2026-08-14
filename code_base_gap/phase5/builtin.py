@@ -14,12 +14,11 @@ SECRET_PATTERNS = [
     ("Private key material", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"), Severity.CRITICAL),
     ("Generic credential assignment", re.compile(r"(?i)\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*['\"][^'\"]{12,}['\"]"), Severity.MEDIUM),
 ]
-DANGEROUS_PATTERNS = [
-    ("Python eval usage", re.compile(r"\beval\s*\("), "CWE-95", Severity.HIGH),
-    ("Python exec usage", re.compile(r"\bexec\s*\("), "CWE-95", Severity.HIGH),
-    ("JavaScript eval usage", re.compile(r"\beval\s*\("), "CWE-95", Severity.HIGH),
-    ("Shell execution primitive", re.compile(r"\b(?:os\.system|subprocess\.(?:run|Popen|call)|child_process\.exec)\s*\("), "CWE-78", Severity.MEDIUM),
-    ("Potential hardcoded HTTP secret in URL", re.compile(r"https?://[^\s:@]+:[^\s@]+@"), "CWE-798", Severity.HIGH),
+DYNAMIC_EXECUTION_PATTERNS = [
+    ("Dynamic code evaluation", re.compile(r"\b(?:eval|exec)\s*\("), "CWE-95", Severity.HIGH, {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}),
+    ("Python shell execution primitive", re.compile(r"\b(?:os\.system|subprocess\.(?:run|Popen|call))\s*\("), "CWE-78", Severity.MEDIUM, {".py"}),
+    ("JavaScript shell execution primitive", re.compile(r"\bchild_process\.exec\s*\("), "CWE-78", Severity.MEDIUM, {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}),
+    ("Potential hardcoded HTTP secret in URL", re.compile(r"https?://[^\s:@]+:[^\s@]+@"), "CWE-798", Severity.HIGH, {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}),
 ]
 
 
@@ -28,14 +27,10 @@ def _iter_files(root: Path, max_file_bytes: int, max_files: int):
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.is_symlink() or any(part in EXCLUDED_DIRS for part in path.relative_to(root).parts[:-1]):
             continue
-        try:
-            size = path.stat().st_size
-        except OSError:
-            continue
-        if size > max_file_bytes:
-            continue
-        if seen >= max_files:
-            return
+        try: size = path.stat().st_size
+        except OSError: continue
+        if size > max_file_bytes: continue
+        if seen >= max_files: return
         seen += 1
         yield path
 
@@ -78,14 +73,15 @@ def scan_secrets(root: Path, max_file_bytes: int = 2_000_000, max_files: int = 1
 
 def scan_code_patterns(root: Path, max_file_bytes: int = 2_000_000, max_files: int = 100_000) -> list[Finding]:
     findings: list[Finding] = []
-    allowed = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
     for path in _iter_files(root, max_file_bytes, max_files):
-        if path.suffix.lower() not in allowed: continue
+        suffix = path.suffix.lower()
+        if suffix not in {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}: continue
         try: text = path.read_text(encoding="utf-8", errors="replace")
         except OSError: continue
         rel = path.relative_to(root).as_posix()
         for line_no, line in enumerate(text.splitlines(), 1):
-            for title, pattern, cwe, severity in DANGEROUS_PATTERNS:
+            for title, pattern, cwe, suffixes in DYNAMIC_EXECUTION_PATTERNS:
+                if suffix not in suffixes: continue
                 match = pattern.search(line)
                 if match:
                     findings.append(_generic_finding("builtin-patterns", title, f"Potentially dangerous construct matched deterministic rule: {title}.", "security-pattern", severity, rel, line_no, match.start() + 1, title, cwe))
