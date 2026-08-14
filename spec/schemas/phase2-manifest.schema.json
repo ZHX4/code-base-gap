@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/phase2-manifest.schema.json",
+  "title": "Code Base Gap Phase 2 Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "repository_revision", "source_kind", "workspace", "files", "exclusions", "limitations", "stats", "repository_metadata"],
+  "properties": {
+    "source": {"type": "string", "minLength": 1},
+    "requested_ref": {"type": ["string", "null"]},
+    "repository_revision": {"type": "string", "minLength": 1},
+    "source_kind": {"type": "string", "enum": ["local", "github"]},
+    "workspace": {"type": "string", "minLength": 1},
+    "files": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "size_bytes", "extension", "language", "kind", "is_test", "is_generated", "is_config", "is_documentation", "is_symlink"], "properties": {"path": {"type": "string", "minLength": 1}, "size_bytes": {"type": "integer", "minimum": 0}, "extension": {"type": "string"}, "language": {"type": ["string", "null"]}, "kind": {"type": "string", "enum": ["source", "config", "documentation", "other"]}, "is_test": {"type": "boolean"}, "is_generated": {"type": "boolean"}, "is_config": {"type": "boolean"}, "is_documentation": {"type": "boolean"}, "is_symlink": {"type": "boolean"}}}},
+    "exclusions": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "stats": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "repository_metadata": {"type": "object", "additionalProperties": true}
+  }
+}
