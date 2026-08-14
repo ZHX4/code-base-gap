@@ -44,8 +44,9 @@ class Phase3Tests(unittest.TestCase):
             self.assertEqual(parsed.language, "python")
             self.assertFalse(parsed.has_errors)
             get_user = next(symbol for symbol in parsed.symbols if symbol.name == "get_user")
-            self.assertTrue(any(item.source == "fastapi" for item in parsed.imports))
-            self.assertTrue(any("Router" in item.local_names for item in parsed.imports))
+            fastapi_import = next(item for item in parsed.imports if item.source == "fastapi")
+            self.assertIn("APIRouter", fastapi_import.imported)
+            self.assertIn("Router", fastapi_import.local_names)
             self.assertTrue(any(reference.name == "user_id" and reference.context_symbol_id == get_user.symbol_id for reference in parsed.references))
             self.assertTrue(any(reference.name == "get_user" for reference in parsed.references))
             self.assertTrue(any(endpoint.path == "/users/{user_id}" for endpoint in parsed.endpoints))
@@ -65,6 +66,8 @@ class Phase3Tests(unittest.TestCase):
             self.assertEqual(len(parsed.imports), 1)
             self.assertEqual(parsed.imports[0].source, "express")
             self.assertEqual(parsed.imports[0].kind, "static")
+            self.assertEqual(parsed.imports[0].imported, ("express",))
+            self.assertEqual(parsed.imports[0].local_names, ("express",))
 
     def test_typescript_exports_http_and_sql(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -80,9 +83,11 @@ class Phase3Tests(unittest.TestCase):
             index = run_phase3(root)
             parsed = index.files[0]
             self.assertEqual(parsed.language, "typescript")
+            express_import = next(item for item in parsed.imports if item.source == "express")
+            self.assertIn("Router", express_import.imported)
+            self.assertIn("ExpressRouter", express_import.local_names)
             self.assertTrue(any(symbol.name == "listUsers" for symbol in parsed.symbols))
             self.assertTrue(any(symbol.name == "listUsers" for symbol in parsed.exports))
-            self.assertTrue(any("ExpressRouter" in item.local_names for item in parsed.imports))
             self.assertTrue(any(endpoint.path == "/users" and endpoint.method == "GET" for endpoint in parsed.endpoints))
             self.assertTrue(any(query.query_kind == "SELECT" for query in parsed.queries))
             self.assertTrue(any(integration.integration == "fetch" for integration in parsed.integrations))
