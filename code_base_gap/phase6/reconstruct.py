@@ -30,14 +30,12 @@ def _e(source: str, subject: str, detail: str, provenance: Provenance) -> Eviden
     return EvidenceRef(source=source, subject=subject, detail=detail, provenance=provenance)
 
 
-def _graph_maps(graph: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+def _graph_maps(graph: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     nodes = {str(node["node_id"]): node for node in graph.get("nodes", [])}
-    outgoing: dict[str, list[dict[str, Any]]] = defaultdict(list)
     incoming: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for edge in graph.get("edges", []):
-        outgoing[str(edge["source"])].append(edge)
         incoming[str(edge["target"])].append(edge)
-    return nodes, outgoing, incoming
+    return nodes, incoming
 
 
 def _component_root(path: str, known_roots: list[str]) -> str:
@@ -94,9 +92,12 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
     manifest = recon["manifest"]
     reconnaissance = recon["reconnaissance"]
     revision = str(manifest["repository_revision"])
-    nodes, outgoing, incoming = _graph_maps(graph)
-    model = SystemModel(repository_revision=revision)
+    graph_revision = graph.get("repository_revision")
+    if graph_revision and str(graph_revision) != revision:
+        raise ValueError("Phase 2 and Phase 4 artifacts refer to different repository revisions")
 
+    nodes, incoming = _graph_maps(graph)
+    model = SystemModel(repository_revision=revision)
     file_nodes = [node for node in nodes.values() if _node_kind(node) == "file"]
     files_by_path = {_file_path(node): node for node in file_nodes if _file_path(node)}
     known_roots = [str(item) for item in reconnaissance.get("source_roots", [])]
@@ -110,12 +111,9 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         component_id = _id("component", revision, root)
         component_by_root[root] = component_id
         languages = sorted({str(entry[1].get("properties", {}).get("language")) for entry in entries if entry[1].get("properties", {}).get("language")})
-        # Phase 2 framework detection is repository-level and is therefore kept as a signal,
-        # not attributed to every inferred component without direct file evidence.
-        provenance = Provenance.INFERRED
         evidence = [_e("phase2.reconnaissance", root, "source root explicitly reported by Phase 2 and used as topology evidence", Provenance.OBSERVED)] if root in known_roots else [_e("phase4.graph", root, "component root inferred from file-path topology", Provenance.INFERRED)]
         model.components.append(SystemComponent(
-            component_id, root, _component_kind(root, len(entries)), (root,), tuple(languages), (), provenance, tuple(evidence)
+            component_id, root, _component_kind(root, len(entries)), (root,), tuple(languages), (), Provenance.INFERRED, tuple(evidence)
         ))
 
     file_to_component = {}
@@ -135,13 +133,7 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         component_id = file_to_component.get(file_path or "")
         entry_id = _id("entry", revision, node["node_id"])
         model.entry_points.append(EntryPoint(
-            entry_id,
-            "http-endpoint",
-            props.get("path"),
-            props.get("method"),
-            file_path,
-            None,
-            component_id,
+            entry_id, "http-endpoint", props.get("path"), props.get("method"), file_path, None, component_id,
             Provenance.OBSERVED,
             (_e("phase4.graph", str(node["node_id"]), "endpoint node explicitly exposes an application entry point", Provenance.OBSERVED),),
         ))
@@ -189,8 +181,7 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
         name = f"{store_kind} datastore" if component_id == "unknown" else f"{store_kind} datastore ({component_id})"
         model.data_stores.append(DataStore(
             _id("datastore", revision, store_kind, component_id), store_kind, name,
-            tuple(sorted(group["files"])), tuple(sorted(group["operations"])), tuple(sorted(group["components"])),
-            Provenance.INFERRED,
+            tuple(sorted(group["files"])), tuple(sorted(group["operations"])), tuple(sorted(group["components"])), Provenance.INFERRED,
             tuple(_e("phase4.graph", node_id, "query node grouped into a datastore signal", Provenance.OBSERVED) for node_id in sorted(group["nodes"])[:20]),
         ))
 
@@ -210,68 +201,60 @@ def reconstruct_system(recon: dict[str, Any], graph: dict[str, Any]) -> SystemMo
 
     for (kind, label), consumers in sorted(dep_groups.items()):
         model.external_dependencies.append(ExternalDependency(
-            _id("dependency", revision, kind, label), label, kind,
-            tuple(sorted(consumers)), Provenance.OBSERVED,
+            _id("dependency", revision, kind, label), label, kind, tuple(sorted(consumers)), Provenance.OBSERVED,
             (_e("phase4.graph", label, "integration/external-module node is present in the program graph", Provenance.OBSERVED),),
         ))
 
     for entry in model.entry_points:
         component_ids = (entry.component_id,) if entry.component_id else ()
         model.trust_boundaries.append(TrustBoundary(
-            _id("boundary", revision, "internet", entry.entry_point_id),
-            BoundaryKind.INTERNET, "external HTTP ingress", component_ids, (entry.entry_point_id,),
-            Provenance.INFERRED,
+            _id("boundary", revision, "internet", entry.entry_point_id), BoundaryKind.INTERNET, "external HTTP ingress",
+            component_ids, (entry.entry_point_id,), Provenance.INFERRED,
             (_e("phase4.graph", entry.entry_point_id, "HTTP endpoint is treated as an internet-facing ingress signal; deployment exposure is not proven", Provenance.INFERRED),),
         ))
 
     for dep in model.external_dependencies:
         if dep.consuming_components:
-            boundary_kind = BoundaryKind.EXTERNAL_SERVICE if dep.kind in {"integration", "external_module"} else BoundaryKind.UNKNOWN
             model.trust_boundaries.append(TrustBoundary(
-                _id("boundary", revision, boundary_kind.value, dep.dependency_id),
-                boundary_kind, dep.name, dep.consuming_components, (), Provenance.INFERRED,
+                _id("boundary", revision, BoundaryKind.EXTERNAL_SERVICE.value, dep.dependency_id), BoundaryKind.EXTERNAL_SERVICE,
+                dep.name, dep.consuming_components, (), Provenance.INFERRED,
                 (_e("phase4.graph", dep.dependency_id, "external integration/module forms a trust-boundary signal", Provenance.INFERRED),),
             ))
 
     for store in model.data_stores:
         model.trust_boundaries.append(TrustBoundary(
-            _id("boundary", revision, "database", store.data_store_id),
-            BoundaryKind.DATABASE, store.name, store.component_ids, (), Provenance.INFERRED,
+            _id("boundary", revision, BoundaryKind.DATABASE.value, store.data_store_id), BoundaryKind.DATABASE,
+            store.name, store.component_ids, (), Provenance.INFERRED,
             (_e("phase4.graph", store.data_store_id, "query activity indicates a data-store interaction; actual deployment topology is not proven", Provenance.INFERRED),),
         ))
 
-    query_by_file: dict[str, list[str]] = defaultdict(list)
-    for node in query_nodes:
-        for edge in incoming.get(str(node["node_id"]), []):
-            source = nodes.get(str(edge["source"]))
-            if source and _node_kind(source) == "file":
-                path = _file_path(source)
-                if path:
-                    query_by_file[path].append(str(node["node_id"]))
+    stores_by_file: dict[str, list[str]] = defaultdict(list)
+    stores_by_component: dict[str, list[str]] = defaultdict(list)
+    for store in model.data_stores:
+        for path in store.file_paths:
+            stores_by_file[path].append(store.data_store_id)
+        for component_id in store.component_ids:
+            stores_by_component[component_id].append(store.data_store_id)
 
-    integration_by_file: dict[str, list[str]] = defaultdict(list)
-    for node in integration_nodes:
-        for edge in incoming.get(str(node["node_id"]), []):
-            source = nodes.get(str(edge["source"]))
-            if source and _node_kind(source) == "file":
-                path = _file_path(source)
-                if path:
-                    integration_by_file[path].append(str(node["node_id"]))
+    deps_by_component: dict[str, list[str]] = defaultdict(list)
+    for dep in model.external_dependencies:
+        for component_id in dep.consuming_components:
+            deps_by_component[component_id].append(dep.dependency_id)
 
     for entry in model.entry_points:
-        if not entry.file_path:
-            continue
         steps = [entry.entry_point_id]
         if entry.component_id:
             steps.append(entry.component_id)
-        steps.extend(sorted(set(query_by_file.get(entry.file_path, [])))[:8])
-        steps.extend(sorted(set(integration_by_file.get(entry.file_path, [])))[:8])
+            steps.extend(sorted(set(stores_by_component.get(entry.component_id, [])))[:8])
+            steps.extend(sorted(set(deps_by_component.get(entry.component_id, [])))[:8])
+        elif entry.file_path:
+            steps.extend(sorted(set(stores_by_file.get(entry.file_path, [])))[:8])
         if len(steps) > 1:
             model.critical_paths.append(CriticalPath(
                 _id("path", revision, entry.entry_point_id), entry.entry_point_id, tuple(steps),
-                "entry point to directly associated component/data/integration signals",
+                "entry point to reconstructed component/data-store/external-dependency signals",
                 Provenance.INFERRED,
-                (_e("phase4.graph", entry.file_path, "steps are assembled from graph relationships sharing the entry-point file", Provenance.INFERRED),),
+                (_e("phase4.graph", entry.file_path or entry.entry_point_id, "steps use only Phase 6 entities backed by static graph evidence", Provenance.INFERRED),),
             ))
 
     for language, count in sorted((reconnaissance.get("languages") or {}).items()):
