@@ -17,11 +17,11 @@ def run_phase5(
     max_file_bytes: int = 2_000_000,
     max_files: int = 100_000,
 ) -> ScanReport:
-    if timeout_s <= 0 or max_file_bytes <= 0 or max_files <= 0:
-        raise ValueError("Phase 5 limits must be positive")
     root = root.resolve()
     if not root.is_dir():
         raise ValueError("Phase 5 workspace must be a directory")
+    if timeout_s <= 0 or max_file_bytes <= 0 or max_files <= 0:
+        raise ValueError("Phase 5 resource limits must be positive")
 
     report = ScanReport(repository_revision=repository_revision)
     report.findings.extend(scan_secrets(root, max_file_bytes, max_files))
@@ -57,6 +57,8 @@ def run_phase5(
             report.limitations.append("syft is not installed; SBOM was not generated")
         elif not sbom:
             report.limitations.append("syft did not return a parseable SBOM")
+        else:
+            report.artifacts["sbom"] = sbom
 
     report.normalize()
     return report
