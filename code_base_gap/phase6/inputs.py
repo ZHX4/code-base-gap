@@ -39,6 +39,9 @@ def load_phase4_graph(path: Path) -> dict[str, Any]:
     payload = _load(path)
     if payload.get("schema_version") != "phase4.program-knowledge-graph.v1":
         raise ValueError("unsupported Phase 4 graph schema version")
+    revision = payload.get("repository_revision")
+    if not isinstance(revision, str) or not revision:
+        raise ValueError("Phase 4 graph must contain repository_revision for Phase 6 reconstruction")
     nodes = payload.get("nodes")
     edges = payload.get("edges")
     if not isinstance(nodes, list) or not isinstance(edges, list):
