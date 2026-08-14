@@ -23,9 +23,11 @@ def _safe_location(uri: str | None, region: dict[str, Any]) -> Location | None:
         return None
     raw = str(uri).replace("\\", "/")
     parsed = urlparse(raw)
-    if parsed.scheme or parsed.netloc:
+    if parsed.scheme or parsed.netloc or raw.startswith("/") or raw.startswith("//"):
         return None
-    normalized = raw.lstrip("./")
+    normalized = raw
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
     try:
         return Location(normalized, region.get("startLine"), region.get("startColumn"), region.get("endLine"), region.get("endColumn"))
     except ValueError:
