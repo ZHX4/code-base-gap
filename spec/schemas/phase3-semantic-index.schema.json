@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/phase3-semantic-index.schema.json",
+  "title": "Code Base Gap Phase 3 Semantic Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "files", "symbol_count", "reference_count", "import_count", "endpoint_count", "query_count", "config_count", "integration_count", "test_count", "limitations", "parser_versions"],
+  "properties": {
+    "schema_version": {"const": "phase3.semantic-index.v1"},
+    "repository_revision": {"type": ["string", "null"]},
+    "files": {"type": "array", "items": {"$ref": "#/$defs/parsedFile"}},
+    "symbol_count": {"type": "integer", "minimum": 0},
+    "reference_count": {"type": "integer", "minimum": 0},
+    "import_count": {"type": "integer", "minimum": 0},
+    "endpoint_count": {"type": "integer", "minimum": 0},
+    "query_count": {"type": "integer", "minimum": 0},
+    "config_count": {"type": "integer", "minimum": 0},
+    "integration_count": {"type": "integer", "minimum": 0},
+    "test_count": {"type": "integer", "minimum": 0},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "parser_versions": {"type": "object", "additionalProperties": {"type": "string"}}
+  },
+  "$defs": {
+    "position": {"type": "object", "additionalProperties": false, "required": ["line", "column"], "properties": {"line": {"type": "integer", "minimum": 1}, "column": {"type": "integer", "minimum": 1}}},
+    "span": {"type": "object", "additionalProperties": false, "required": ["start_byte", "end_byte", "start", "end"], "properties": {"start_byte": {"type": "integer", "minimum": 0}, "end_byte": {"type": "integer", "minimum": 0}, "start": {"$ref": "#/$defs/position"}, "end": {"$ref": "#/$defs/position"}}},
+    "astNode": {"type": "object", "additionalProperties": false, "required": ["node_id", "parent_id", "node_type", "named", "span", "child_ids", "field_name"], "properties": {"node_id": {"type": "integer", "minimum": 0}, "parent_id": {"type": ["integer", "null"]}, "node_type": {"type": "string"}, "named": {"type": "boolean"}, "span": {"$ref": "#/$defs/span"}, "child_ids": {"type": "array", "items": {"type": "integer", "minimum": 0}}, "field_name": {"type": ["string", "null"]}}},
+    "symbol": {"type": "object", "additionalProperties": false, "required": ["symbol_id", "name", "kind", "span", "parent_symbol_id", "exported", "signature"], "properties": {"symbol_id": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"}, "span": {"$ref": "#/$defs/span"}, "parent_symbol_id": {"type": ["string", "null"]}, "exported": {"type": "boolean"}, "signature": {"type": ["string", "null"]}}},
+    "import": {"type": "object", "additionalProperties": false, "required": ["source", "imported", "local_names", "kind", "span"], "properties": {"source": {"type": "string"}, "imported": {"type": "array", "items": {"type": "string"}}, "local_names": {"type": "array", "items": {"type": "string"}}, "kind": {"type": "string"}, "span": {"$ref": "#/$defs/span"}}},
+    "reference": {"type": "object", "additionalProperties": false, "required": ["name", "kind", "span", "context_symbol_id", "target_hint"], "properties": {"name": {"type": "string"}, "kind": {"type": "string"}, "span": {"$ref": "#/$defs/span"}, "context_symbol_id": {"type": ["string", "null"]}, "target_hint": {"type": ["string", "null"]}}},
+    "endpoint": {"type": "object", "additionalProperties": false, "required": ["framework", "method", "path", "span", "handler_hint"], "properties": {"framework": {"type": "string"}, "method": {"type": ["string", "null"]}, "path": {"type": ["string", "null"]}, "span": {"$ref": "#/$defs/span"}, "handler_hint": {"type": ["string", "null"]}}},
+    "query": {"type": "object", "additionalProperties": false, "required": ["query_kind", "text", "span", "context_symbol_id"], "properties": {"query_kind": {"type": "string"}, "text": {"type": "string"}, "span": {"$ref": "#/$defs/span"}, "context_symbol_id": {"type": ["string", "null"]}}},
+    "config": {"type": "object", "additionalProperties": false, "required": ["key", "value_kind", "span"], "properties": {"key": {"type": "string"}, "value_kind": {"type": "string"}, "span": {"$ref": "#/$defs/span"}}},
+    "integration": {"type": "object", "additionalProperties": false, "required": ["integration", "kind", "span"], "properties": {"integration": {"type": "string"}, "kind": {"type": "string"}, "span": {"$ref": "#/$defs/span"}}},
+    "test": {"type": "object", "additionalProperties": false, "required": ["framework", "name", "span"], "properties": {"framework": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}, "span": {"$ref": "#/$defs/span"}}},
+    "parsedFile": {"type": "object", "additionalProperties": false, "required": ["path", "language", "source_sha256", "byte_length", "root_type", "has_errors", "error_count", "ast_nodes", "symbols", "imports", "exports", "references", "endpoints", "queries", "configs", "integrations", "tests", "limitations"], "properties": {"path": {"type": "string"}, "language": {"type": "string"}, "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "byte_length": {"type": "integer", "minimum": 0}, "root_type": {"type": "string"}, "has_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "ast_nodes": {"type": "array", "items": {"$ref": "#/$defs/astNode"}}, "symbols": {"type": "array", "items": {"$ref": "#/$defs/symbol"}}, "imports": {"type": "array", "items": {"$ref": "#/$defs/import"}}, "exports": {"type": "array", "items": {"$ref": "#/$defs/symbol"}}, "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}}, "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}}, "queries": {"type": "array", "items": {"$ref": "#/$defs/query"}}, "configs": {"type": "array", "items": {"$ref": "#/$defs/config"}}, "integrations": {"type": "array", "items": {"$ref": "#/$defs/integration"}}, "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}}, "limitations": {"type": "array", "items": {"type": "string"}}}}
+  }
+}
