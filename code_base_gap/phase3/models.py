@@ -19,6 +19,23 @@ class SemanticIndexConfig:
     max_ast_depth: int = 1_000
     max_source_text_bytes: int = 2_000_000
 
+    def __post_init__(self) -> None:
+        values = {
+            "max_files": self.max_files,
+            "max_file_bytes": self.max_file_bytes,
+            "max_total_bytes": self.max_total_bytes,
+            "max_ast_nodes_per_file": self.max_ast_nodes_per_file,
+            "max_ast_depth": self.max_ast_depth,
+            "max_source_text_bytes": self.max_source_text_bytes,
+        }
+        invalid = {name: value for name, value in values.items() if not isinstance(value, int) or isinstance(value, bool) or value <= 0}
+        if invalid:
+            raise ValueError(f"Phase 3 resource limits must be positive integers: {invalid}")
+        if self.max_file_bytes > self.max_source_text_bytes:
+            raise ValueError("max_file_bytes cannot exceed max_source_text_bytes")
+        if self.max_file_bytes > self.max_total_bytes:
+            raise ValueError("max_file_bytes cannot exceed max_total_bytes")
+
 
 @dataclass(frozen=True)
 class Position:
