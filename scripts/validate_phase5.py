@@ -19,13 +19,21 @@ def main() -> int:
         raise SystemExit(f"missing Phase 5 modules: {sorted(missing)}")
     for path in PKG.glob("*.py"):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    if not SCHEMA.is_file():
+        raise SystemExit("missing Phase 5 schema")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
         raise SystemExit("wrong Phase 5 JSON Schema dialect")
     if schema.get("$id") != "https://code-base-gap.dev/schema/phase5-deterministic-scan.schema.json":
         raise SystemExit("wrong Phase 5 schema id")
+    required = set(schema.get("required", []))
+    if "artifacts" not in required:
+        raise SystemExit("Phase 5 report must persist analysis artifacts")
     if set(schema["$defs"]["finding"]["properties"]["severity"]["enum"]) != {"critical", "high", "medium", "low", "info", "unknown"}:
         raise SystemExit("severity contract mismatch")
+    tool_required = set(schema["$defs"]["toolRun"]["required"])
+    if tool_required != {"metadata", "exit_code", "duration_ms", "output_truncated"}:
+        raise SystemExit("ToolRun contract must exclude raw stdout/stderr from serialized reports")
     print("Phase 5 structural validation: PASS")
     return 0
 
