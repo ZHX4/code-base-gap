@@ -19,6 +19,7 @@ def main() -> int:
         raise SystemExit(f"missing Phase 3 modules: {sorted(missing)}")
     for path in PKG.glob("*.py"):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
     if not SCHEMA.is_file():
         raise SystemExit("missing Phase 3 semantic-index schema")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -26,12 +27,20 @@ def main() -> int:
         raise SystemExit("Phase 3 schema has wrong JSON Schema dialect")
     if schema.get("$id") != "https://code-base-gap.dev/schema/phase3-semantic-index.schema.json":
         raise SystemExit("Phase 3 schema has wrong $id")
-    expected = {"schema_version", "files", "symbol_count", "reference_count", "import_count", "endpoint_count", "query_count", "config_count", "integration_count", "test_count", "limitations", "parser_versions"}
+    expected = {
+        "schema_version", "files", "symbol_count", "reference_count", "import_count",
+        "endpoint_count", "query_count", "config_count", "integration_count", "test_count",
+        "limitations", "parser_versions",
+    }
     if not expected.issubset(set(schema.get("required", []))):
         raise SystemExit(f"Phase 3 schema missing required fields: {sorted(expected - set(schema.get('required', [])))}")
     symbol = schema.get("$defs", {}).get("symbol", {})
-    if "name_span" not in symbol.get("required", []) or "name_span" not in symbol.get("properties", {}):
-        raise SystemExit("Phase 3 symbol schema must expose name_span")
+    symbol_required = set(symbol.get("required", []))
+    if not {"symbol_id", "name", "kind", "span", "name_span", "parent_symbol_id"}.issubset(symbol_required):
+        raise SystemExit("Phase 3 symbol schema is missing required identity/containment fields")
+    if "name_span" not in symbol.get("properties", {}):
+        raise SystemExit("Phase 3 symbol schema is missing name_span property")
+
     print("Phase 3 structural validation: PASS")
     return 0
 
