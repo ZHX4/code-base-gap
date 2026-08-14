@@ -11,7 +11,7 @@ SUPPORTED_KINDS = {"source", "config"}
 
 
 def _resolve_entry(root: Path, relative_path: str) -> Path | None:
-    candidate = (root / relative_path)
+    candidate = root / relative_path
     try:
         resolved = candidate.resolve()
         root_resolved = root.resolve()
@@ -36,7 +36,7 @@ def build_semantic_index(
     index = SemanticIndex(repository_revision=repository_revision)
     if manifest is not None:
         index.repository_revision = manifest.repository_revision
-        entries = [entry for entry in manifest.files if entry.kind in SUPPORTED_KINDS and not entry.is_symlink]
+        entries = [entry for entry in manifest.files if entry.kind in SUPPORTED_KINDS]
     else:
         from code_base_gap.phase2.filesystem import inventory
         entries, _, limitations = inventory(
