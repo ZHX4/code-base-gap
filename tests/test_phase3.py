@@ -16,6 +16,8 @@ class Phase3Tests(unittest.TestCase):
         self.assertEqual(detect_language(Path("server.ts")), "typescript")
         self.assertEqual(detect_language(Path("component.tsx")), "tsx")
         self.assertEqual(detect_language(Path("query.sql")), "sql")
+        self.assertEqual(detect_language(Path("config.json")), "json")
+        self.assertEqual(detect_language(Path("config.yaml")), "yaml")
         self.assertEqual(detect_language(Path("Dockerfile")), "dockerfile")
         self.assertIsNone(detect_language(Path("README.md")))
 
@@ -92,6 +94,23 @@ class Phase3Tests(unittest.TestCase):
             self.assertTrue(any(endpoint.path == "/users" and endpoint.method == "GET" for endpoint in parsed.endpoints))
             self.assertTrue(any(query.query_kind == "SELECT" for query in parsed.queries))
             self.assertTrue(any(integration.integration == "fetch" for integration in parsed.integrations))
+
+    def test_tsx_json_yaml_and_dockerfile_parse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "component.tsx").write_text("export function App(){ return <div>Hello</div>; }\n", encoding="utf-8")
+            (root / "config.json").write_text('{"enabled": true, "port": 8080}\n', encoding="utf-8")
+            (root / "config.yaml").write_text("service:\n  port: 8080\n", encoding="utf-8")
+            (root / "Dockerfile").write_text("FROM python:3.11\nCOPY . /app\n", encoding="utf-8")
+            index = run_phase3(root)
+            files = {item.path: item for item in index.files}
+            self.assertEqual(files["component.tsx"].language, "tsx")
+            self.assertFalse(files["component.tsx"].has_errors)
+            self.assertEqual(files["config.json"].language, "json")
+            self.assertEqual(files["config.yaml"].language, "yaml")
+            self.assertEqual(files["Dockerfile"].language, "dockerfile")
+            for path in ("component.tsx", "config.json", "config.yaml", "Dockerfile"):
+                self.assertGreater(len(files[path].ast_nodes), 0)
 
     def test_sql_ast_query_extraction(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
