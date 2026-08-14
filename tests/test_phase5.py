@@ -14,7 +14,7 @@ from code_base_gap.phase5.sarif import parse_sarif
 
 class Phase5Tests(unittest.TestCase):
     def test_location_rejects_escape_and_uri_paths(self) -> None:
-        for value in ("../secret.txt", "/etc/passwd", r"C:\\secret.txt", "file:///tmp/x", "https://example.com/x"):
+        for value in ("../secret.txt", "/etc/passwd", r"C:\\secret.txt", "C:secret.txt", "file:///tmp/x", "https://example.com/x"):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     Location(value, 1, 1)
@@ -60,7 +60,7 @@ class Phase5Tests(unittest.TestCase):
     def test_sarif_rejects_malformed_or_external_location(self) -> None:
         with self.assertRaises(json.JSONDecodeError):
             parse_sarif("not json", "test")
-        for uri in ("file:///tmp/x", "/etc/passwd", "C:/Windows/win.ini"):
+        for uri in ("file:///tmp/x", "/etc/passwd", "C:/Windows/win.ini", "C:Windows/win.ini"):
             payload = {"version": "2.1.0", "runs": [{"tool": {"driver": {"rules": [{"id": "R1"}]}}, "results": [{"ruleId": "R1", "message": {"text": "x"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": uri}}}]}]}]}
             with self.subTest(uri=uri):
                 finding = parse_sarif(json.dumps(payload), "test")[0]
@@ -68,12 +68,12 @@ class Phase5Tests(unittest.TestCase):
 
     def test_deduplication_and_severity_selection(self) -> None:
         location = Location("a.py", 1, 1)
-        first = Finding("1", "same", "x", "x", "security", Severity.LOW, Confidence.LOW, "a", location, (Evidence("x", "a", "x"),))
+        first = Finding("1", "same", "x", "x", "security", Severity.HIGH, Confidence.LOW, "a", location, (Evidence("x", "a", "x"),))
         second = Finding("2", "same", "x", "x", "security", Severity.HIGH, Confidence.HIGH, "b", location, (Evidence("y", "b", "y"),))
         report = ScanReport(findings=[first, second])
         report.normalize()
         self.assertEqual(len(report.findings), 1)
-        self.assertEqual(report.findings[0].severity, Severity.HIGH)
+        self.assertEqual(report.findings[0].confidence, Confidence.HIGH)
         self.assertEqual(len(report.findings[0].evidence), 2)
 
     def test_runner_rejects_unallowlisted_tool(self) -> None:
