@@ -45,11 +45,16 @@ def run_phase5(
                 report.limitations.append(f"{name} exited with status {run.exit_code}; output may be incomplete")
             if run.output_truncated:
                 report.limitations.append(f"{name} output was truncated")
+            if run.stderr.startswith("invalid"):
+                report.limitations.append(f"{name} produced invalid analyzer output; tool findings were discarded")
 
         codeql_run, codeql_findings = run_codeql(root, timeout_s=timeout_s * 2)
         report.tool_runs.append(codeql_run)
         report.findings.extend(codeql_findings)
-        report.limitations.append("CodeQL database creation/build execution is deferred to Phase 18 sandbox execution")
+        if codeql_run.exit_code != 0 and codeql_run.metadata.status != "unavailable":
+            report.limitations.append("CodeQL version discovery failed; CodeQL analysis was unavailable")
+        else:
+            report.limitations.append("CodeQL database creation/build execution is deferred to Phase 18 sandbox execution")
 
         syft_run, sbom = run_syft(root, timeout_s=max(60, timeout_s // 2))
         report.tool_runs.append(syft_run)
