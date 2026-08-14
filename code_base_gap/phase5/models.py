@@ -34,8 +34,8 @@ class Location:
         normalized = self.path.replace("\\", "/")
         first = normalized.split("/", 1)[0]
         absolute_drive = len(first) == 2 and first[1] == ":" and first[0].isalpha()
-        uri_scheme = "://" in normalized.split("/", 1)[0] or normalized.lower().startswith(("file:", "http:", "https:"))
-        if not self.path or normalized.startswith("/") or absolute_drive or uri_scheme or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
+        uri_scheme = normalized.lower().startswith(("file:", "http:", "https:")) or "://" in normalized
+        if not self.path or normalized.startswith("/") or normalized.startswith("\\") or absolute_drive or uri_scheme or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
             raise ValueError("finding location must be a repository-relative path")
         for name, value in (("start_line", self.start_line), ("start_column", self.start_column), ("end_line", self.end_line), ("end_column", self.end_column)):
             if value is not None and value <= 0:
@@ -106,6 +106,7 @@ class ScanReport:
     repository_revision: str | None = None
     findings: list[Finding] = field(default_factory=list)
     tool_runs: list[ToolRun] = field(default_factory=list)
+    artifacts: dict[str, Any] = field(default_factory=dict)
     limitations: list[str] = field(default_factory=list)
     stats: dict[str, int] = field(default_factory=dict)
 
@@ -129,11 +130,13 @@ class ScanReport:
         self.findings = sorted(by_fingerprint.values(), key=lambda f: (-rank[f.severity], f.fingerprint))
         self.limitations = sorted(set(self.limitations))
         counts = {severity.value: 0 for severity in Severity}
-        for finding in self.findings: counts[finding.severity.value] += 1
+        for finding in self.findings:
+            counts[finding.severity.value] += 1
         counts["findings"] = len(self.findings)
         counts["tool_runs"] = len(self.tool_runs)
+        counts["artifacts"] = len(self.artifacts)
         self.stats = counts
 
     def to_dict(self) -> dict[str, Any]:
         self.normalize()
-        return {"schema_version": self.schema_version, "repository_revision": self.repository_revision, "findings": [f.to_dict() for f in self.findings], "tool_runs": [r.to_dict() for r in self.tool_runs], "limitations": list(self.limitations), "stats": dict(self.stats)}
+        return {"schema_version": self.schema_version, "repository_revision": self.repository_revision, "findings": [f.to_dict() for f in self.findings], "tool_runs": [r.to_dict() for r in self.tool_runs], "artifacts": self.artifacts, "limitations": list(self.limitations), "stats": dict(self.stats)}
