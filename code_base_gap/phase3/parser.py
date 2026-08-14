@@ -29,6 +29,8 @@ class ParseTree:
     nodes: tuple[AstNodeRecord, ...]
     has_errors: bool
     error_count: int
+    max_traversal_nodes: int
+    max_traversal_depth: int
     limitations: tuple[str, ...]
 
 
@@ -60,10 +62,15 @@ def _build_nodes(root: object, config: SemanticIndexConfig) -> tuple[tuple[AstNo
             continue
         node_id = next_id
         next_id += 1
-        children = list(node.named_children if hasattr(node, "named_children") else [])
+        children = list(getattr(node, "named_children", []))
         records.append(AstNodeRecord(
-            node_id=node_id, parent_id=parent_id, node_type=str(node.type),
-            named=bool(getattr(node, "is_named", True)), span=_span(node), child_ids=(), field_name=field_name,
+            node_id=node_id,
+            parent_id=parent_id,
+            node_type=str(node.type),
+            named=bool(getattr(node, "is_named", True)),
+            span=_span(node),
+            child_ids=(),
+            field_name=field_name,
         ))
         for index in range(len(children) - 1, -1, -1):
             child = children[index]
@@ -90,23 +97,22 @@ def parse_file(path: Path, config: SemanticIndexConfig) -> ParseTree | None:
     if language_name is None:
         return None
     if path.is_symlink():
-        return ParseTree(str(path), language_name, b"", "", None, (), False, 0, ("symlink source is not followed",))
+        return ParseTree(str(path), language_name, b"", "", None, (), False, 0, config.max_ast_nodes_per_file, config.max_ast_depth, ("symlink source is not followed",))
     try:
         source = path.read_bytes()
     except OSError as exc:
-        return ParseTree(str(path), language_name, b"", "", None, (), False, 0, (f"unreadable source: {type(exc).__name__}",))
+        return ParseTree(str(path), language_name, b"", "", None, (), False, 0, config.max_ast_nodes_per_file, config.max_ast_depth, (f"unreadable source: {type(exc).__name__}",))
     digest = hashlib.sha256(source).hexdigest()
     if len(source) > config.max_source_text_bytes or len(source) > config.max_file_bytes:
-        return ParseTree(str(path), language_name, b"", digest, None, (), False, 0, ("source exceeds configured parsing byte limit",))
+        return ParseTree(str(path), language_name, b"", digest, None, (), False, 0, config.max_ast_nodes_per_file, config.max_ast_depth, ("source exceeds configured parsing byte limit",))
     try:
         language = get_language(language_name)
         parser = Parser(language)
         tree = parser.parse(source)
         nodes, truncated, limits = _build_nodes(tree.root_node, config)
-        error_nodes = sum(1 for node in nodes if node.node_type == "ERROR")
-        error_count = error_nodes
+        error_count = sum(1 for node in nodes if node.node_type == "ERROR")
         if truncated:
             limits = (*limits, "syntax error count reflects only the bounded AST traversal")
-        return ParseTree(str(path), language_name, source, digest, tree.root_node, nodes, error_count > 0, error_count, limits)
+        return ParseTree(str(path), language_name, source, digest, tree.root_node, nodes, error_count > 0, error_count, config.max_ast_nodes_per_file, config.max_ast_depth, limits)
     except Exception as exc:
-        return ParseTree(str(path), language_name, source, digest, None, (), False, 0, (f"parser failure: {type(exc).__name__}",))
+        return ParseTree(str(path), language_name, source, digest, None, (), False, 0, config.max_ast_nodes_per_file, config.max_ast_depth, (f"parser failure: {type(exc).__name__}",))
