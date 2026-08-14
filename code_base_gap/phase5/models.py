@@ -32,7 +32,10 @@ class Location:
 
     def __post_init__(self) -> None:
         normalized = self.path.replace("\\", "/")
-        if not self.path or normalized.startswith("/") or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
+        first = normalized.split("/", 1)[0]
+        absolute_drive = len(first) == 2 and first[1] == ":" and first[0].isalpha()
+        uri_scheme = "://" in normalized.split("/", 1)[0] or normalized.lower().startswith(("file:", "http:", "https:"))
+        if not self.path or normalized.startswith("/") or absolute_drive or uri_scheme or "\x00" in self.path or any(part == ".." for part in normalized.split("/")):
             raise ValueError("finding location must be a repository-relative path")
         for name, value in (("start_line", self.start_line), ("start_column", self.start_column), ("end_line", self.end_line), ("end_column", self.end_column)):
             if value is not None and value <= 0:
