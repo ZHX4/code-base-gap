@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from code_base_gap.phase2.models import AuditManifest, FileEntry
 from code_base_gap.phase3.models import SemanticIndexConfig
 from code_base_gap.phase3.parser import detect_language
 from code_base_gap.phase3.pipeline import run_phase3
@@ -123,6 +124,16 @@ class Phase3Tests(unittest.TestCase):
             parsed = index.files[0]
             self.assertLessEqual(len(parsed.ast_nodes), 10)
             self.assertTrue(any("truncated" in limitation for limitation in parsed.limitations))
+
+    def test_manifest_revision_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            manifest = AuditManifest("local", None, "abc", "local", str(root), [
+                FileEntry("main.py", 0, ".py", "python", "source", False, False, False, False, False)
+            ])
+            with self.assertRaises(ValueError):
+                from code_base_gap.phase3.indexer import build_semantic_index
+                build_semantic_index(root, manifest=manifest, repository_revision="def")
 
     def test_limits_and_symlink_safety(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
