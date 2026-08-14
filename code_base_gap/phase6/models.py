@@ -149,9 +149,24 @@ class SystemModel:
         }
         self.validate()
 
+    @staticmethod
+    def _unique(ids: list[str], label: str) -> set[str]:
+        values = set(ids)
+        if len(values) != len(ids):
+            raise ValueError(f"duplicate {label} identifiers are not allowed")
+        return values
+
     def validate(self) -> None:
-        component_ids = {item.component_id for item in self.components}
-        entry_ids = {item.entry_point_id for item in self.entry_points}
+        component_ids = self._unique([item.component_id for item in self.components], "component")
+        entry_ids = self._unique([item.entry_point_id for item in self.entry_points], "entry point")
+        datastore_ids = self._unique([item.data_store_id for item in self.data_stores], "data store")
+        dependency_ids = self._unique([item.dependency_id for item in self.external_dependencies], "external dependency")
+        boundary_ids = self._unique([item.boundary_id for item in self.trust_boundaries], "trust boundary")
+        path_ids = self._unique([item.path_id for item in self.critical_paths], "critical path")
+        self._unique([item.signal_id for item in self.signals], "signal")
+        if not set(datastore_ids).isdisjoint(dependency_ids):
+            raise ValueError("data-store and external-dependency IDs must remain distinct")
+        all_entity_ids = component_ids | entry_ids | datastore_ids | dependency_ids | boundary_ids
         for entry in self.entry_points:
             if entry.component_id is not None and entry.component_id not in component_ids:
                 raise ValueError(f"entry point references unknown component: {entry.component_id}")
@@ -167,8 +182,10 @@ class SystemModel:
             if not set(boundary.entry_point_ids).issubset(entry_ids):
                 raise ValueError(f"boundary references unknown entry point: {boundary.boundary_id}")
         for path in self.critical_paths:
-            if path.entry_point_id not in entry_ids:
+            if path.path_id not in path_ids or path.entry_point_id not in entry_ids:
                 raise ValueError(f"critical path references unknown entry point: {path.path_id}")
+            if not set(path.steps).issubset(all_entity_ids):
+                raise ValueError(f"critical path contains an unknown Phase 6 entity: {path.path_id}")
 
     def to_dict(self) -> dict[str, Any]:
         self.normalize()
