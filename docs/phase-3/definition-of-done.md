@@ -16,22 +16,31 @@ Phase 3 is complete when the repository contains a deterministic parsing and sem
 - [x] Dockerfile is parsed.
 - [x] Syntax errors are retained as metadata rather than silently discarded.
 
+## Resource safety
+
+- [x] All semantic-index resource limits require positive integers.
+- [x] File-size limits cannot exceed the source-text or repository-total limits.
+- [x] AST node and depth limits are propagated to semantic extraction.
+- [x] Each semantic traversal is bounded by the parser-declared limits.
+- [x] Large files are skipped with explicit limitations.
+
 ## AST
 
 - [x] AST nodes have stable per-file IDs.
 - [x] Parent-child relationships are materialized.
 - [x] Field names are retained where available.
 - [x] Source byte and line/column spans are retained.
-- [x] AST node and depth limits are enforced.
-- [x] Large files are skipped with explicit limitations.
 
 ## Semantic index
 
 - [x] Symbols are extracted.
+- [x] Symbol declaration spans and name-only spans are distinguished.
 - [x] Nested symbol containment is represented.
-- [x] Imports are extracted.
+- [x] Imports are extracted by supported language family.
+- [x] Imported names and local aliases are represented separately.
 - [x] Exports are extracted where statically observable.
-- [x] Identifier references are extracted.
+- [x] Identifier references are extracted without excluding symbol bodies.
+- [x] Reference context can point to the containing symbol.
 - [x] Endpoint candidates are extracted.
 - [x] SQL/query candidates are extracted.
 - [x] Configuration keys are extracted.
@@ -44,7 +53,9 @@ Phase 3 is complete when the repository contains a deterministic parsing and sem
 - [x] Phase 3 never executes repository code.
 - [x] Symlinks are never followed.
 - [x] Repository-relative path containment is checked before reading files.
+- [x] Absolute and unsafe relative manifest paths are rejected.
 - [x] Existing Phase 2 file/total-size limits remain available.
+- [x] Manifest revision and explicitly requested revision must agree.
 - [x] Indexing limitations are explicitly recorded.
 
 ## Interfaces
@@ -56,8 +67,9 @@ Phase 3 is complete when the repository contains a deterministic parsing and sem
 
 ## Validation
 
-- [x] Structural validator checks all Phase 3 modules and schemas.
-- [x] Unit tests cover language detection, Python, TypeScript, SQL, syntax errors, limits, and symlink safety.
+- [x] Structural validator checks all Phase 3 modules and schema contracts.
+- [x] Unit tests cover language detection, Python, TypeScript, SQL, syntax errors, resource limits, bounded AST traversal, import aliases, references, and symlink safety.
+- [x] CI is intentionally excluded from Phase 3 completion criteria for this repository.
 
 ## Explicit phase boundary
 
