@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-base-gap.dev/schema/phase4-program-knowledge-graph.schema.json",
+  "title": "Code Base Gap Phase 4 Program Knowledge Graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository_revision", "nodes", "edges", "limitations", "stats"],
+  "properties": {
+    "schema_version": {"const": "phase4.program-knowledge-graph.v1"},
+    "repository_revision": {"type": ["string", "null"]},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "stats": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "kind", "label", "properties"],
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["repository", "file", "symbol", "module", "endpoint", "query", "config", "integration", "test", "external_module"]},
+        "label": {"type": "string", "minLength": 1},
+        "properties": {"type": "object"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_id", "source", "target", "kind", "properties"],
+      "properties": {
+        "edge_id": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["CONTAINS", "DECLARES", "IMPORTS", "EXPORTS", "RESOLVES_TO", "EXPOSES", "EXECUTES_QUERY", "USES_CONFIG", "INTEGRATES_WITH", "TESTS", "LOCATED_IN"]},
+        "properties": {"type": "object"}
+      }
+    }
+  }
+}
