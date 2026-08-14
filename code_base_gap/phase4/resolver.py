@@ -1,6 +1,7 @@
 """Conservative cross-file resolution for imports and identifier references."""
 from __future__ import annotations
 
+import posixpath
 from pathlib import PurePosixPath
 from typing import Iterable
 
@@ -18,10 +19,22 @@ def _strip_known_extension(path: str) -> str:
     return path
 
 
-def _candidate_paths(source_path: str, module: str) -> list[str]:
+def _python_relative_base(source_path: str, module: str) -> str:
     source_dir = PurePosixPath(source_path).parent
-    if module.startswith("."):
-        base = (source_dir / module).as_posix()
+    dots = len(module) - len(module.lstrip("."))
+    remainder = module[dots:]
+    parent = source_dir
+    for _ in range(max(0, dots - 1)):
+        parent = parent.parent
+    return posixpath.normpath((parent / remainder.replace(".", "/")).as_posix())
+
+
+def _candidate_paths(source_path: str, module: str) -> list[str]:
+    if source_path.endswith(".py") and module.startswith("."):
+        base = _python_relative_base(source_path, module)
+    elif module.startswith("."):
+        source_dir = PurePosixPath(source_path).parent
+        base = posixpath.normpath((source_dir / module).as_posix())
     else:
         base = module.replace(".", "/")
     base = _strip_known_extension(base)
@@ -36,15 +49,18 @@ def _candidate_paths(source_path: str, module: str) -> list[str]:
         base.rstrip("/") + "/index.js",
         base.rstrip("/") + "/__init__.py",
     ])
-    return list(dict.fromkeys(PurePosixPath(path).as_posix().lstrip("./") for path in candidates))
+    normalized = []
+    for path in candidates:
+        value = posixpath.normpath(path).lstrip("./")
+        if value != ".." and not value.startswith("../"):
+            normalized.append(value)
+    return list(dict.fromkeys(normalized))
 
 
 def resolve_import(source_path: str, record: ImportRecord, files: set[str]) -> str | None:
     candidates = _candidate_paths(source_path, record.source)
     matches = [candidate for candidate in candidates if candidate in files]
-    if len(matches) == 1:
-        return matches[0]
-    return None
+    return matches[0] if len(matches) == 1 else None
 
 
 def unique_symbols_by_name(files: Iterable[ParsedFile]) -> dict[str, list[tuple[str, SymbolRecord]]]:
@@ -75,6 +91,4 @@ def resolve_reference(
         return parsed_file.path, same_file[0]
 
     global_matches = global_by_name.get(reference.name, [])
-    if len(global_matches) == 1:
-        return global_matches[0]
-    return None
+    return global_matches[0] if len(global_matches) == 1 else None
